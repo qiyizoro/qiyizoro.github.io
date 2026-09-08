@@ -1,0 +1,40 @@
+.launch {
+  background:
+    linear-gradient(180deg, rgba(3, 9, 16, 0.18) 0%, rgba(4, 11, 18, 0.12) 45%, rgba(5, 13, 20, 0.58) 100%),
+    url('/images/launch-cosmic-dawn.png') center center / cover no-repeat;
+}
+
+.launch .galaxy-container {
+  opacity: 0.28;
+  mix-blend-mode: screen;
+}
+
+.launch > .stars {
+  opacity: 0.12;
+}
+
+.launch h1 {
+  text-shadow: 0 8px 55px rgba(0, 0, 0, 0.78), 0 0 26px rgba(9, 22, 35, 0.5);
+}
+
+@media (max-width: 620px) {
+  .launch {
+    background-position: 50% center;
+  }
+
+  .launch::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 45%, transparent 0 24%, rgba(3, 9, 16, 0.2) 58%, rgba(3, 9, 16, 0.44) 100%);
+  }
+
+  .launch-copy {
+    width: 100%;
+  }
+
+  .launch .primary {
+    min-height: 48px;
+  }
+}
