@@ -1,4 +1,4 @@
-export type WorldKey='home'|'twin'|'yeye'|'qiqi'|'memories'|'map';
+export type WorldKey='home'|'twin'|'yeye'|'qiqi'|'tasks'|'achievements'|'memories'|'map';
 export const zones=[
  {key:'twin' as WorldKey,no:'01',title:'双生之境',sub:'双人任务 · 共同成就',symbol:'☾',featured:true},
  {key:'memories' as WorldKey,no:'02',title:'回忆档案馆',sub:'完整主线 · 秘密房间',symbol:'◇'},
