@@ -1,0 +1,23 @@
+.brand > span:has(> img) {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.brand > span > img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(218, 185, 112, .2));
+}
+
+@media (max-width: 620px) {
+  .brand > span:has(> img) { width: 36px; height: 36px; }
+  .brand > span > img { width: 34px; height: 34px; }
+}

@@ -44,6 +44,16 @@
 
   function renameBrand() {
     document.title = '未知之境';
+    const mark = document.querySelector('.brand > span');
+    if (mark && !mark.querySelector('img')) {
+      mark.textContent = '';
+      const image = document.createElement('img');
+      image.src = '/images/unknown-realm-emblem.webp';
+      image.alt = '';
+      image.width = 40;
+      image.height = 40;
+      mark.append(image);
+    }
     document.querySelectorAll('h1,h2,h3,b,strong,span,small').forEach(node => {
       if (!node.children.length && /^(有椰之境|有椰子之境)$/.test(node.textContent.trim())) node.textContent = '未知之境';
     });
