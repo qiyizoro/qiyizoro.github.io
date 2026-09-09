@@ -1,0 +1,64 @@
+.twin-hub--illustrated .twin-module {
+  isolation: isolate;
+  min-height: clamp(270px, 30vw, 360px);
+  align-items: end;
+  border-color: rgba(221, 188, 124, .2);
+  background-color: #091620;
+  background-image: var(--twin-image);
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 90px rgba(1, 7, 12, .28), 0 24px 58px rgba(0, 0, 0, .18);
+}
+.twin-hub--illustrated .twin-module::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(3, 10, 16, .9) 0%, rgba(4, 12, 19, .7) 50%, rgba(4, 11, 17, .18) 100%), linear-gradient(0deg, rgba(2, 8, 13, .9), transparent 68%);
+  transition: background .4s ease;
+}
+.twin-hub--illustrated .twin-module:hover::before {
+  background: linear-gradient(90deg, rgba(3, 10, 16, .82) 0%, rgba(4, 12, 19, .55) 50%, rgba(4, 11, 17, .1) 100%), linear-gradient(0deg, rgba(2, 8, 13, .84), transparent 70%);
+}
+.twin-module--yeye { --twin-image: url('/images/twin-yeye-room.webp'); background-position: 55% center!important; }
+.twin-module--qiqi { --twin-image: url('/images/twin-qiqi-room.webp'); background-position: 60% center!important; }
+.twin-module--tasks { --twin-image: url('/images/twin-tasks.webp'); background-position: 54% center!important; }
+.twin-module--achievements { --twin-image: url('/images/twin-achievements.webp'); background-position: 54% center!important; }
+.twin-hub--illustrated .portrait-preview,
+.twin-hub--illustrated .system-icon {
+  opacity: 0;
+  width: 72px;
+  height: 72px;
+  pointer-events: none;
+}
+.twin-hub--illustrated .twin-module > div { z-index: 1; text-shadow: 0 2px 14px #000; }
+.twin-hub--illustrated .twin-module > span,
+.twin-hub--illustrated .twin-module > svg { z-index: 1; }
+.twin-hub--illustrated .twin-module h2 { font-size: clamp(26px, 3vw, 38px); }
+.twin-hub--illustrated .twin-module small { color: rgba(224, 232, 237, .76); font-size: 13px; }
+.twin-hub--illustrated .twin-module p { color: #e3c47e; font-size: 12px; }
+
+.qiqi-magazine-profile .profile-main > div:last-child::before { content: 'CHARACTER ARCHIVE · 02'; }
+.yeye-magazine-profile .profile-avatar-edit { display: none; }
+.qiqi-magazine-profile .profile-main h2 {
+  background-image: linear-gradient(125deg, #fff 25%, #9dc5d2 70%, #e2bf77);
+}
+.qiqi-magazine-profile .empty-avatar small { display: none; }
+.qiqi-magazine-profile .empty-avatar::after {
+  content: '柒';
+  color: rgba(226, 191, 119, .74);
+  font: 400 clamp(82px, 13vw, 150px)/1 var(--serif);
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+@media (max-width: 850px) {
+  .twin-hub--illustrated .twin-module { min-height: 230px; }
+  .twin-hub--illustrated .portrait-preview,
+  .twin-hub--illustrated .system-icon { width: 48px; height: 48px; }
+  .twin-hub--illustrated .twin-module::before {
+    background: linear-gradient(90deg, rgba(3, 10, 16, .9), rgba(4, 12, 19, .55)), linear-gradient(0deg, rgba(2, 8, 13, .92), transparent 72%);
+  }
+}

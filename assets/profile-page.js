@@ -251,20 +251,28 @@
     queued = false;
     const profile = document.querySelector('.person-profile');
     if (!profile) return;
+    const profileName = profile.querySelector('.profile-main h2')?.textContent.trim() || '';
+    const isYeye = profileName === '椰椰';
+    const isQiqi = profileName === '柒柒';
+    profile.classList.add('magazine-profile');
+    profile.classList.toggle('yeye-magazine-profile', isYeye);
+    profile.classList.toggle('qiqi-magazine-profile', isQiqi);
     const subhero = document.querySelector('.subhero');
-    if (subhero) {
+    if (subhero && isYeye) {
       subhero.querySelector('.eyebrow')?.classList.add('profile-hidden');
       const title = subhero.querySelector('h1');
       if (title) title.textContent = '椰椰的书房';
       const intro = subhero.querySelector('p:not(.eyebrow)');
       if (intro) intro.textContent = intro.textContent.replace('星图', '神秘');
     }
-    document.querySelector('.traits.standalone')?.classList.add('profile-hidden');
-    enrichProfile(profile);
+    if (isYeye) {
+      document.querySelector('.traits.standalone')?.classList.add('profile-hidden');
+      enrichProfile(profile);
+    }
     const gallery = document.querySelector('.profile-gallery-section');
-    if (gallery) enhanceGallery(gallery);
+    if (gallery && isYeye) enhanceGallery(gallery);
     const main = profile.closest('main');
-    if (main) { addMessageBoard(main); addLetter(main); }
+    if (main && isYeye) { addMessageBoard(main); addLetter(main); }
   }
   new MutationObserver(() => { if (!queued) { queued = true; requestAnimationFrame(scan); } }).observe(document.documentElement, { childList: true, subtree: true });
   scan();
