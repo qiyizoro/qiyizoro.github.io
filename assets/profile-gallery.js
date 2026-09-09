@@ -20,9 +20,9 @@
   }
 
   async function loadPhotos() {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,created_at&order=created_at.desc&limit=30`, { headers: headers(token()) });
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,location,created_at&order=created_at.desc&limit=60`, { headers: headers(token()) });
     if (!response.ok) return [];
-    const rows = await response.json();
+    const rows = (await response.json()).filter(row => !['WORLD_TREE_BUBBLE', 'YEYE_PROFILE', 'YEYE_MESSAGE_BOARD'].includes(row.location));
     return (await Promise.all(rows.map(async row => ({ ...row, src: await signedUrl(row.storage_path) })))).filter(row => row.src);
   }
 
