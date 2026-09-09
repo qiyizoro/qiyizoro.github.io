@@ -205,9 +205,45 @@
     input.focus();
   }
 
+  function enhanceAccordion(row) {
+    if (row.dataset.accordionEnhanced) return;
+    row.dataset.accordionEnhanced = 'true';
+    let frame = 0;
+    const activatePanel = panel => {
+      row.querySelectorAll('.world-panel').forEach(item => item.classList.toggle('is-active', item === panel));
+    };
+    row.addEventListener('pointerover', event => {
+      if (!matchMedia('(hover: hover)').matches) return;
+      const panel = event.target.closest('.world-panel');
+      if (panel) activatePanel(panel);
+    });
+    row.addEventListener('pointermove', event => {
+      const panel = event.target.closest('.world-panel');
+      if (!panel || !matchMedia('(hover: hover)').matches) return;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const rect = panel.getBoundingClientRect();
+        panel.style.setProperty('--gallery-x', `${((event.clientX - rect.left) / rect.width - .5) * 16}px`);
+        panel.style.setProperty('--gallery-y', `${((event.clientY - rect.top) / rect.height - .5) * 10}px`);
+      });
+    });
+    row.addEventListener('pointerleave', () => {
+      row.querySelectorAll('.world-panel').forEach(panel => {
+        panel.style.removeProperty('--gallery-x');
+        panel.style.removeProperty('--gallery-y');
+      });
+    });
+    row.addEventListener('focusin', event => {
+      const panel = event.target.closest('.world-panel');
+      if (panel) activatePanel(panel);
+    });
+  }
+
   function mount() {
     const row = document.querySelector('.world-accordion');
-    if (!row || row.querySelector('.panel-4')) return;
+    if (!row) return;
+    enhanceAccordion(row);
+    if (row.querySelector('.panel-4')) return;
     const panel = create('button', 'world-panel panel-4');
     panel.type = 'button';
     panel.innerHTML = '<div class="world-panel__art"></div><div class="world-panel__top"><b>04</b><i>✦</i></div><div class="world-panel__copy"><strong>世界树</strong><small>秘密花园 · 共同生长</small></div><span class="world-panel__arrow">→</span>';
@@ -217,7 +253,10 @@
     };
     panel.addEventListener('mouseenter', activate);
     panel.addEventListener('focus', activate);
-    panel.onclick = openLock;
+    panel.onclick = () => {
+      if (!panel.classList.contains('is-active')) { activate(); return; }
+      openLock();
+    };
     row.append(panel);
   }
   new MutationObserver(mount).observe(document.documentElement, { childList: true, subtree: true });
