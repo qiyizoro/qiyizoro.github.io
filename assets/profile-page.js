@@ -126,6 +126,15 @@
     edit.type = 'button'; edit.className = 'profile-edit'; edit.textContent = '编辑人物资料';
     edit.onclick = () => openProfileEditor(profile);
     copy.append(edit);
+    const avatar = profile.querySelector('.avatar');
+    if (avatar) {
+      avatar.classList.add('profile-avatar-editable');
+      const avatarEdit = document.createElement('button');
+      avatarEdit.type = 'button'; avatarEdit.className = 'profile-avatar-edit'; avatarEdit.textContent = '更换照片';
+      avatarEdit.onclick = () => openProfileEditor(profile);
+      avatar.append(avatarEdit);
+      avatar.querySelector('img')?.addEventListener('click', () => openProfileEditor(profile));
+    }
     const chips = document.createElement('div');
     chips.className = 'profile-chips';
     chips.innerHTML = '<span>逻辑分析</span><span>整理能力</span><span>敏锐感知</span><span>喜欢小龙虾 · 辣 · 烧烤 · 三文鱼</span><span>害怕昆虫</span>';
@@ -183,15 +192,23 @@
     } catch {}
     if (!messages.length) { try { messages = JSON.parse(localStorage.getItem('yeye-messages-v1') || '[]'); } catch {} }
     const list = board.querySelector('.message-list');
-    list.innerHTML = messages.length ? messages.map(item => `<article><p>${escapeHtml(item.description)}</p><time>${new Date(item.created_at || Date.now()).toLocaleDateString('zh-CN')}</time></article>`).join('') : '<div class="message-empty">第一句话，等你来写。</div>';
+    list.innerHTML = messages.map((item, index) => {
+      const seed = [...String(item.id || index)].reduce((total, char) => total + char.charCodeAt(0), 0);
+      const top = 12 + (seed % 6) * 14;
+      const duration = 17 + seed % 13;
+      const delay = -(seed % duration);
+      return `<article style="--message-top:${top}%;--message-duration:${duration}s;--message-delay:${delay}s"><p>${escapeHtml(item.description)}</p><time>${new Date(item.created_at || Date.now()).toLocaleDateString('zh-CN')}</time></article>`;
+    }).join('');
   }
 
   function addMessageBoard(main) {
     if (main.querySelector('.message-board')) return;
     const board = document.createElement('section');
     board.className = 'message-board';
-    board.innerHTML = '<div class="message-board-head"><p>MESSAGE BOARD</p><h2>留一句话</h2></div><div class="message-list"></div><form><textarea maxlength="180" rows="3" placeholder="写下想留给她的话…" required></textarea><button type="submit">留下这句话</button></form>';
+    board.innerHTML = '<div class="message-board-head"><p>MESSAGE BOARD</p><h2>留言板</h2></div><div class="message-list" aria-live="polite"></div><form><textarea maxlength="180" rows="3" placeholder="写下想留给她的话…" required></textarea><button type="submit">留下这句话</button></form>';
     main.append(board);
+    const footer = main.querySelector('footer');
+    if (footer) main.append(footer);
     board.querySelector('form').onsubmit = async event => {
       event.preventDefault(); const field = event.currentTarget.querySelector('textarea'); const value = field.value.trim(); if (!value) return;
       const session = auth();
@@ -219,14 +236,14 @@
     if (main.querySelector('.letter-easter-egg')) return;
     const letter = document.createElement('button');
     letter.type = 'button'; letter.className = 'letter-easter-egg'; letter.setAttribute('aria-label', '一封隐藏的信');
-    letter.innerHTML = '<span>✉</span>';
+    letter.innerHTML = '<img src="/images/letter-envelope-v2.png" alt="" draggable="false">';
     let count = 0, reset;
     letter.onclick = () => {
-      count += 1; clearTimeout(reset); letter.classList.add('tapped'); setTimeout(() => letter.classList.remove('tapped'), 180);
+      count += 1; clearTimeout(reset); letter.classList.remove('tapped'); void letter.offsetWidth; letter.classList.add('tapped'); setTimeout(() => letter.classList.remove('tapped'), 620);
       if (count >= 5) { count = 0; toast('向同行玩家拿取你的信件'); letter.classList.add('unlocked'); }
       else reset = setTimeout(() => { count = 0; }, 2600);
     };
-    (main.querySelector('.message-board') || main).append(letter);
+    (main.querySelector('.person-profile') || main).append(letter);
   }
 
   let queued = false;
@@ -234,6 +251,14 @@
     queued = false;
     const profile = document.querySelector('.person-profile');
     if (!profile) return;
+    const subhero = document.querySelector('.subhero');
+    if (subhero) {
+      subhero.querySelector('.eyebrow')?.classList.add('profile-hidden');
+      const title = subhero.querySelector('h1');
+      if (title) title.textContent = '椰椰的书房';
+      const intro = subhero.querySelector('p:not(.eyebrow)');
+      if (intro) intro.textContent = intro.textContent.replace('星图', '神秘');
+    }
     document.querySelector('.traits.standalone')?.classList.add('profile-hidden');
     enrichProfile(profile);
     const gallery = document.querySelector('.profile-gallery-section');
