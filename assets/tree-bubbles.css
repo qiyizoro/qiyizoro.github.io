@@ -4,8 +4,10 @@
 }
 
 .world-tree-view::before {
-  background-position: 50% 34% !important;
-  transform: scale(1.035);
+  background-position: 50% 50% !important;
+  background-size: auto 96% !important;
+  background-repeat: no-repeat !important;
+  transform: none;
   filter: contrast(1.06) saturate(.94);
 }
 
@@ -117,8 +119,6 @@
 
 .tree-bubble-composer input:focus { box-shadow: inset 0 0 0 1px rgba(235,201,128,.55); }
 .tree-bubble-composer button { padding: 0 18px; border: 0; border-radius: 11px; color: #0b141a; background: #dcc083; cursor: pointer; }
-.tree-bubble-hint { grid-column: 1 / -1; padding-left: 4px; color: rgba(224,229,229,.58); font-size: 9px; letter-spacing: .1em; }
-
 @keyframes tree-orbit {
   0% { z-index: 1; opacity: .5; transform: translate3d(-48vw, 16px, -180px) scale(calc(var(--orbit-depth) * .68)); }
   25% { opacity: .9; transform: translate3d(0, -18px, 80px) scale(var(--orbit-depth)); }
@@ -128,7 +128,7 @@
 }
 
 @media (max-width: 620px) {
-  .world-tree-view::before { background-position: 50% 28% !important; transform: scale(1.1); }
+  .world-tree-view::before { background-position: 50% 50% !important; background-size: auto 94% !important; transform: none; }
   .world-tree-back { font-size: 12px; padding: 9px 12px; }
   .tree-bubble-scene { inset: 8% 0 116px; }
   .tree-bubble-composer { bottom: max(12px, env(safe-area-inset-bottom)); grid-template-columns: 1fr auto; border-radius: 15px; }

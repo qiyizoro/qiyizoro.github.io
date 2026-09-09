@@ -1,5 +1,12 @@
 (() => {
   const STORAGE_KEY = 'unknown-world-tree-bubbles';
+  const SUPABASE_URL = 'https://bwspbjatblwcfjgkuqbm.supabase.co';
+  const API_KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
+  const authKey = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
+  const cloudHeaders = (token, extra = {}) => ({ apikey: API_KEY, Authorization: `Bearer ${token || API_KEY}`, ...extra });
+  const cloudSession = () => {
+    try { return JSON.parse(localStorage.getItem(authKey) || 'null'); } catch { return null; }
+  };
   const palette = ['gold', 'amber', 'moon', 'sage', 'pearl'];
   const create = (tag, cls, text) => {
     const el = document.createElement(tag);
@@ -14,6 +21,36 @@
   const saveBubbles = bubbles => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(bubbles)); } catch {}
   };
+
+  async function loadCloudBubbles() {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.WORLD_TREE_BUBBLE&order=created_at.asc&limit=200`, { headers: cloudHeaders(cloudSession()?.access_token) });
+    if (!response.ok) return null;
+    const rows = await response.json();
+    return rows.map(row => {
+      try { return { ...JSON.parse(row.description), cloudId: row.id, cloudPath: row.storage_path }; } catch { return null; }
+    }).filter(Boolean);
+  }
+
+  async function addCloudBubble(item) {
+    const auth = cloudSession();
+    if (!auth?.access_token || !auth?.user?.id) return null;
+    const path = `tree-bubbles/${auth.user.id}/${item.id}.json`;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, {
+      method: 'POST',
+      headers: cloudHeaders(auth.access_token, { 'Content-Type': 'application/json', Prefer: 'return=representation' }),
+      body: JSON.stringify({ storage_path: path, description: JSON.stringify(item), location: 'WORLD_TREE_BUBBLE', ratio: 1 })
+    });
+    if (!response.ok) return null;
+    const rows = await response.json();
+    return { ...item, cloudId: rows[0]?.id, cloudPath: path };
+  }
+
+  async function deleteCloudBubble(item) {
+    const auth = cloudSession();
+    if (!auth?.access_token || !item.cloudId) return false;
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(item.cloudId)}`, { method: 'DELETE', headers: cloudHeaders(auth.access_token) });
+    return response.ok;
+  }
 
   function bubbleElement(item, onDelete) {
     const orbit = create('div', 'tree-bubble-orbit');
@@ -35,7 +72,7 @@
       timer = setTimeout(() => {
         longPressed = true;
         bubble.classList.add('is-removing');
-        setTimeout(() => onDelete(item.id, orbit), 220);
+        setTimeout(() => onDelete(item, orbit), 220);
       }, 720);
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => bubble.addEventListener(type, cancel));
@@ -48,31 +85,52 @@
     return orbit;
   }
 
-  function openTree() {
+  async function openTree() {
     const view = create('section', 'world-tree-view');
     const back = create('button', 'world-tree-back', '← 返回世界总览');
     const scene = create('div', 'tree-bubble-scene');
     const composer = create('form', 'tree-bubble-composer');
     const input = create('input');
     const add = create('button', '', '生成气泡');
-    const hint = create('small', 'tree-bubble-hint', '点击气泡查看 · 长按删除');
     input.type = 'text';
     input.maxLength = 80;
     input.placeholder = '写下一句话…';
     input.setAttribute('aria-label', '输入气泡文字');
     add.type = 'submit';
-    composer.append(input, add, hint);
+    composer.append(input, add);
     back.onclick = () => close(view);
+    view.append(back, scene, composer);
+    document.body.append(view);
 
-    let bubbles = readBubbles();
-    const removeBubble = (id, element) => {
-      bubbles = bubbles.filter(item => item.id !== id);
-      saveBubbles(bubbles);
+    let bubbles = [];
+    const removeBubble = async (item, element) => {
+      if (item.cloudId && !(await deleteCloudBubble(item))) {
+        element.querySelector('.tree-bubble')?.classList.remove('is-removing');
+        alert('云端删除失败，请确认已经登录后重试。');
+        return;
+      }
+      bubbles = bubbles.filter(entry => entry.id !== item.id);
+      saveBubbles(bubbles.filter(entry => !entry.cloudId));
       element.remove();
     };
     const render = item => scene.append(bubbleElement(item, removeBubble));
+    const localBubbles = readBubbles();
+    const cloudBubbles = await loadCloudBubbles();
+    if (cloudBubbles) {
+      bubbles = cloudBubbles;
+      const remainingLocal = [];
+      for (const local of localBubbles) {
+        const uploaded = await addCloudBubble(local);
+        if (uploaded) bubbles.push(uploaded);
+        else remainingLocal.push(local);
+      }
+      if (localBubbles.length) saveBubbles(remainingLocal);
+      bubbles.push(...remainingLocal);
+    } else {
+      bubbles = localBubbles;
+    }
     bubbles.forEach(render);
-    composer.onsubmit = event => {
+    composer.onsubmit = async event => {
       event.preventDefault();
       const text = input.value.trim();
       if (!text) { input.focus(); return; }
@@ -86,14 +144,32 @@
         delay: -Math.round(Math.random() * 24),
         depth: (0.72 + Math.random() * 0.7).toFixed(2)
       };
-      bubbles.push(item);
-      saveBubbles(bubbles);
-      render(item);
+      add.disabled = true;
+      add.textContent = '同步中…';
+      const uploaded = await addCloudBubble(item);
+      add.disabled = false;
+      add.textContent = '生成气泡';
+      if (!uploaded) {
+        alert('请先在“回忆灯塔”登录云端账号，再生成气泡。');
+        return;
+      }
+      bubbles.push(uploaded);
+      render(uploaded);
       input.value = '';
       input.focus();
     };
-    view.append(back, scene, composer);
-    document.body.append(view);
+    const refresh = async () => {
+      if (!view.isConnected) return;
+      if (!cloudSession()?.access_token) { setTimeout(refresh, 12000); return; }
+      const latest = await loadCloudBubbles();
+      if (latest && JSON.stringify(latest.map(item => item.cloudId)) !== JSON.stringify(bubbles.map(item => item.cloudId))) {
+        bubbles = latest;
+        scene.replaceChildren();
+        bubbles.forEach(render);
+      }
+      setTimeout(refresh, 12000);
+    };
+    setTimeout(refresh, 12000);
   }
 
   function openLock() {
