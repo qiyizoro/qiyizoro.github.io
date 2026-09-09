@@ -1,0 +1,141 @@
+.world-tree-view {
+  overflow: hidden;
+  perspective: 1100px;
+}
+
+.world-tree-view::before {
+  background-position: 50% 34% !important;
+  transform: scale(1.035);
+  filter: contrast(1.06) saturate(.94);
+}
+
+.tree-bubble-scene {
+  position: absolute;
+  z-index: 1;
+  inset: 7% 0 92px;
+  overflow: hidden;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.tree-bubble-orbit {
+  position: absolute;
+  top: var(--orbit-y);
+  left: 50%;
+  width: var(--orbit-size);
+  height: var(--orbit-size);
+  pointer-events: auto;
+  transform-style: preserve-3d;
+  animation: tree-orbit var(--orbit-duration) linear var(--orbit-delay) infinite;
+}
+
+.tree-bubble {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid rgba(255, 230, 168, .5);
+  border-radius: 50%;
+  color: #f8edd2;
+  background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.64), rgba(228,191,112,.16) 28%, rgba(8,18,25,.56) 72%);
+  box-shadow: inset 0 0 18px rgba(255,255,255,.14), 0 0 24px rgba(221,181,92,.28);
+  backdrop-filter: blur(5px);
+  cursor: pointer;
+  transition: width .35s, height .35s, margin .35s, border-radius .35s, opacity .22s, transform .22s;
+}
+
+.tree-bubble__glow {
+  position: absolute;
+  width: 18%;
+  aspect-ratio: 1;
+  left: 24%;
+  top: 19%;
+  border-radius: 50%;
+  background: #fff8da;
+  box-shadow: 0 0 10px #ffe8a0;
+}
+
+.tree-bubble__text {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 13px 16px;
+  opacity: 0;
+  font: 500 13px/1.55 'Songti SC', 'Noto Serif SC', serif;
+  letter-spacing: .04em;
+  text-shadow: 0 2px 12px #000;
+  transition: opacity .24s .08s;
+}
+
+.tree-bubble.is-open {
+  width: min(230px, 64vw);
+  height: auto;
+  min-height: 86px;
+  margin: -18px 0 0 -80px;
+  border-radius: 42px;
+  background: rgba(8, 17, 24, .82);
+  box-shadow: 0 12px 40px rgba(0,0,0,.45), 0 0 28px rgba(221,181,92,.22);
+}
+
+.tree-bubble.is-open .tree-bubble__glow { opacity: .22; }
+.tree-bubble.is-open .tree-bubble__text { position: relative; opacity: 1; }
+.tree-bubble.is-removing { opacity: 0; transform: scale(.4); }
+.tree-bubble--amber { border-color: rgba(242,180,95,.54); filter: hue-rotate(-8deg); }
+.tree-bubble--moon { border-color: rgba(198,220,229,.55); filter: hue-rotate(22deg) saturate(.7); }
+.tree-bubble--sage { border-color: rgba(190,210,170,.5); filter: hue-rotate(42deg) saturate(.68); }
+.tree-bubble--pearl { border-color: rgba(237,225,205,.62); filter: saturate(.48) brightness(1.08); }
+
+.tree-bubble-composer {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: minmax(0, 420px) auto;
+  gap: 9px;
+  width: min(620px, calc(100% - 32px));
+  padding: 10px;
+  border: 1px solid rgba(229,200,139,.32);
+  border-radius: 18px;
+  background: rgba(4, 12, 18, .72);
+  box-shadow: 0 16px 60px rgba(0,0,0,.38);
+  backdrop-filter: blur(16px);
+  transform: translateX(-50%);
+}
+
+.tree-bubble-composer input {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 11px;
+  outline: 0;
+  color: #f7f0df;
+  background: rgba(255,255,255,.08);
+}
+
+.tree-bubble-composer input:focus { box-shadow: inset 0 0 0 1px rgba(235,201,128,.55); }
+.tree-bubble-composer button { padding: 0 18px; border: 0; border-radius: 11px; color: #0b141a; background: #dcc083; cursor: pointer; }
+.tree-bubble-hint { grid-column: 1 / -1; padding-left: 4px; color: rgba(224,229,229,.58); font-size: 9px; letter-spacing: .1em; }
+
+@keyframes tree-orbit {
+  0% { z-index: 1; opacity: .5; transform: translate3d(-48vw, 16px, -180px) scale(calc(var(--orbit-depth) * .68)); }
+  25% { opacity: .9; transform: translate3d(0, -18px, 80px) scale(var(--orbit-depth)); }
+  50% { z-index: 3; opacity: 1; transform: translate3d(48vw, 10px, 210px) scale(calc(var(--orbit-depth) * 1.08)); }
+  75% { opacity: .82; transform: translate3d(0, 28px, 0) scale(calc(var(--orbit-depth) * .86)); }
+  100% { z-index: 1; opacity: .5; transform: translate3d(-48vw, 16px, -180px) scale(calc(var(--orbit-depth) * .68)); }
+}
+
+@media (max-width: 620px) {
+  .world-tree-view::before { background-position: 50% 28% !important; transform: scale(1.1); }
+  .world-tree-back { font-size: 12px; padding: 9px 12px; }
+  .tree-bubble-scene { inset: 8% 0 116px; }
+  .tree-bubble-composer { bottom: max(12px, env(safe-area-inset-bottom)); grid-template-columns: 1fr auto; border-radius: 15px; }
+  .tree-bubble-composer input { padding: 11px; }
+  .tree-bubble-composer button { padding: 0 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tree-bubble-orbit { animation-duration: calc(var(--orbit-duration) * 2.4); }
+}
