@@ -26,10 +26,30 @@
 .twin-module--achievements { --twin-image: url('/images/twin-achievements.webp'); background-position: 54% center!important; }
 .twin-hub--illustrated .portrait-preview,
 .twin-hub--illustrated .system-icon {
+  width: 112px;
+  height: 148px;
+  z-index: 1;
+  border: 1px solid rgba(231, 202, 145, .45);
+  border-radius: 2px;
+  background: rgba(6, 14, 21, .62);
+  box-shadow: 10px 12px 0 rgba(116, 83, 139, .2), 0 18px 38px rgba(0, 0, 0, .42);
+  transform: rotate(-2deg);
+}
+.twin-hub--illustrated .portrait-preview img {
+  filter: saturate(.86) contrast(1.04);
+  transition: filter .4s ease, transform .55s ease;
+}
+.twin-hub--illustrated .twin-module:hover .portrait-preview img {
+  filter: saturate(1) contrast(1.04);
+  transform: scale(1.035);
+}
+.twin-hub--illustrated .system-icon {
   opacity: 0;
   width: 72px;
   height: 72px;
   pointer-events: none;
+  border: 0;
+  box-shadow: none;
 }
 .twin-hub--illustrated .twin-module > div { z-index: 1; text-shadow: 0 2px 14px #000; }
 .twin-hub--illustrated .twin-module > span,
@@ -58,6 +78,7 @@
   .twin-hub--illustrated .twin-module { min-height: 230px; }
   .twin-hub--illustrated .portrait-preview,
   .twin-hub--illustrated .system-icon { width: 48px; height: 48px; }
+  .twin-hub--illustrated .portrait-preview { width: 82px; height: 112px; }
   .twin-hub--illustrated .twin-module::before {
     background: linear-gradient(90deg, rgba(3, 10, 16, .9), rgba(4, 12, 19, .55)), linear-gradient(0deg, rgba(2, 8, 13, .92), transparent 72%);
   }

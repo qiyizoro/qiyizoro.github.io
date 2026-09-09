@@ -3,7 +3,10 @@
   const KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
   const BUCKET = 'memory-photos';
   const AUTH_KEY = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
-  const PROFILE_LOCATION = 'YEYE_PROFILE';
+  const PROFILE_CONFIG = {
+    '椰椰': { location: 'YEYE_PROFILE', storage: 'yeye-profile-v1', folder: 'profile' },
+    '柒柒': { location: 'QIQI_PROFILE', storage: 'qiqi-profile-v1', folder: 'qiqi-profile' }
+  };
   const MESSAGE_LOCATION = 'YEYE_MESSAGE_BOARD';
 
   const auth = () => {
@@ -69,26 +72,37 @@
     if (!copy) return;
     if (data.name) copy.querySelector('h2').textContent = data.name;
     if (data.description) copy.querySelector('p').textContent = data.description;
-    if (data.quote) copy.querySelector('blockquote').textContent = `“${data.quote}”`;
+    if (data.quote && copy.querySelector('blockquote')) copy.querySelector('blockquote').textContent = `“${data.quote}”`;
     if (data.avatarPath) profile.dataset.avatarPath = data.avatarPath;
-    if (data.avatarUrl) profile.querySelector('.avatar img')?.setAttribute('src', data.avatarUrl);
+    if (data.avatarUrl) {
+      const avatar = profile.querySelector('.avatar');
+      let image = avatar?.querySelector('img');
+      if (avatar && !image) {
+        image = document.createElement('img');
+        image.alt = `${data.name || '人物'}的头像`;
+        avatar.prepend(image);
+        avatar.querySelectorAll('svg, small').forEach(item => item.remove());
+        avatar.classList.remove('empty-avatar');
+      }
+      image?.setAttribute('src', data.avatarUrl);
+    }
   }
 
-  async function loadProfile(profile) {
-    const local = localStorage.getItem('yeye-profile-v1');
+  async function loadProfile(profile, config) {
+    const local = localStorage.getItem(config.storage);
     if (local) { try { applyProfile(profile, JSON.parse(local)); } catch {} }
     try {
-      const response = await fetch(`${API}/rest/v1/memory_photos?select=id,description&location=eq.${PROFILE_LOCATION}&order=created_at.desc&limit=1`, { headers: headers() });
+      const response = await fetch(`${API}/rest/v1/memory_photos?select=id,description&location=eq.${config.location}&order=created_at.desc&limit=1`, { headers: headers() });
       const rows = response.ok ? await response.json() : [];
       if (!rows[0]?.description) return;
       const data = JSON.parse(rows[0].description);
       if (data.avatarPath) data.avatarUrl = await signedUrl(data.avatarPath);
       applyProfile(profile, data);
-      localStorage.setItem('yeye-profile-v1', JSON.stringify(data));
+      localStorage.setItem(config.storage, JSON.stringify(data));
     } catch {}
   }
 
-  function openProfileEditor(profile) {
+  function openProfileEditor(profile, config) {
     const value = profileValues(profile);
     const modal = dialog('编辑人物资料', `<form class="profile-form"><label>名字<input name="name" maxlength="20" value="${escapeHtml(value.name)}"></label><label>人物说明<textarea name="description" rows="5" maxlength="300">${escapeHtml(value.description)}</textarea></label><label>代表语<input name="quote" maxlength="80" value="${escapeHtml(value.quote)}"></label><label class="profile-file">更换人物照片<input name="avatar" type="file" accept="image/*"></label><button class="profile-save" type="submit">保存资料</button></form>`);
     modal.layer.querySelector('form').onsubmit = async event => {
@@ -98,15 +112,16 @@
       const file = form.get('avatar');
       const session = auth();
       try {
-        if (file?.size) data.avatarPath = await uploadFile(file, 'profile');
+        if (file?.size) data.avatarPath = await uploadFile(file, config.folder);
         const localData = { ...data };
         if (data.avatarPath) localData.avatarUrl = await signedUrl(data.avatarPath);
-        localStorage.setItem('yeye-profile-v1', JSON.stringify(localData));
+        localStorage.setItem(config.storage, JSON.stringify(localData));
         applyProfile(profile, localData);
+        window.dispatchEvent(new CustomEvent('profile-avatar-updated', { detail: { location: config.location, name: data.name, url: localData.avatarUrl } }));
         if (session?.access_token) {
-          const query = await fetch(`${API}/rest/v1/memory_photos?select=id&location=eq.${PROFILE_LOCATION}&limit=1`, { headers: headers(session.access_token) });
+          const query = await fetch(`${API}/rest/v1/memory_photos?select=id&location=eq.${config.location}&limit=1`, { headers: headers(session.access_token) });
           const rows = query.ok ? await query.json() : [];
-          const payload = { description: JSON.stringify(data), location: PROFILE_LOCATION, storage_path: data.avatarPath || `profile/${session.user.id}.json`, ratio: 1 };
+          const payload = { description: JSON.stringify(data), location: config.location, storage_path: data.avatarPath || `${config.folder}/${session.user.id}.json`, ratio: 1 };
           const target = rows[0] ? `${API}/rest/v1/memory_photos?id=eq.${rows[0].id}` : `${API}/rest/v1/memory_photos`;
           const saved = await fetch(target, { method: rows[0] ? 'PATCH' : 'POST', headers: { ...headers(session.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           if (!saved.ok) throw new Error('云端保存失败');
@@ -117,30 +132,34 @@
     };
   }
 
-  function enrichProfile(profile) {
+  function enrichProfile(profile, config, isYeye) {
     if (profile.dataset.pagePolished) return;
     profile.dataset.pagePolished = 'true';
     const copy = profile.querySelector('.profile-main > div:last-child');
     if (!copy) return;
     const edit = document.createElement('button');
     edit.type = 'button'; edit.className = 'profile-edit'; edit.textContent = '编辑人物资料';
-    edit.onclick = () => openProfileEditor(profile);
+    edit.onclick = () => openProfileEditor(profile, config);
     copy.append(edit);
     const avatar = profile.querySelector('.avatar');
     if (avatar) {
       avatar.classList.add('profile-avatar-editable');
       const avatarEdit = document.createElement('button');
       avatarEdit.type = 'button'; avatarEdit.className = 'profile-avatar-edit'; avatarEdit.textContent = '更换照片';
-      avatarEdit.onclick = () => openProfileEditor(profile);
+      avatarEdit.onclick = () => openProfileEditor(profile, config);
       avatar.append(avatarEdit);
-      avatar.querySelector('img')?.addEventListener('click', () => openProfileEditor(profile));
+      avatar.addEventListener('click', event => {
+        if (!event.target.closest('.profile-avatar-edit')) openProfileEditor(profile, config);
+      });
     }
-    const chips = document.createElement('div');
-    chips.className = 'profile-chips';
-    chips.innerHTML = '<span>逻辑分析</span><span>整理能力</span><span>敏锐感知</span><span>喜欢小龙虾 · 辣 · 烧烤 · 三文鱼</span><span>害怕昆虫</span>';
-    copy.append(chips);
-    document.querySelector('.traits.standalone')?.classList.add('profile-hidden');
-    loadProfile(profile);
+    if (isYeye) {
+      const chips = document.createElement('div');
+      chips.className = 'profile-chips';
+      chips.innerHTML = '<span>逻辑分析</span><span>整理能力</span><span>敏锐感知</span><span>喜欢小龙虾 · 辣 · 烧烤 · 三文鱼</span><span>害怕昆虫</span>';
+      copy.append(chips);
+      document.querySelector('.traits.standalone')?.classList.add('profile-hidden');
+    }
+    loadProfile(profile, config);
   }
 
   async function updatePhoto(card, description, file) {
@@ -265,10 +284,11 @@
       const intro = subhero.querySelector('p:not(.eyebrow)');
       if (intro) intro.textContent = intro.textContent.replace('星图', '神秘');
     }
+    const config = PROFILE_CONFIG[profileName];
     if (isYeye) {
       document.querySelector('.traits.standalone')?.classList.add('profile-hidden');
-      enrichProfile(profile);
     }
+    if (config) enrichProfile(profile, config, isYeye);
     const gallery = document.querySelector('.profile-gallery-section');
     if (gallery && isYeye) enhanceGallery(gallery);
     const main = profile.closest('main');
