@@ -1,0 +1,48 @@
+/* Lightweight image sources and restrained ambient effects. */
+.panel-1 .world-panel__art { background-image: url('/images/world-twin.webp') !important; }
+.panel-2 .world-panel__art { background-image: url('/images/world-memory.webp') !important; }
+.panel-3 .world-panel__art { background-image: url('/images/world-map.webp') !important; }
+.panel-4 .world-panel__art { background-image: url('/images/world-tree.webp') !important; }
+.world-tree-view::before { background-image: linear-gradient(180deg,rgba(2,8,14,.08),rgba(2,8,14,.28) 58%,rgba(2,8,14,.75)),url('/images/world-tree.webp') !important; }
+
+.noise,
+.aurora,
+.stars,
+.stars i {
+  animation: none !important;
+  transform: none !important;
+  will-change: auto !important;
+  pointer-events: none !important;
+}
+
+.section,
+.system-block,
+.profile-gallery-section,
+.diary-section,
+.story-layout {
+  content-visibility: auto;
+  contain-intrinsic-size: 700px;
+}
+
+@media (max-width: 700px), (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .aurora { display: none !important; }
+  .noise { opacity: .025 !important; }
+  .world-panel,
+  .world-panel__art,
+  .profile-dome-track,
+  .profile-dome-item {
+    transition-duration: .16s !important;
+  }
+
+  .world-tree-lock,
+  .world-tree-view,
+  .daily-poster,
+  .profile-gallery-add {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}

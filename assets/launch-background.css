@@ -1,7 +1,7 @@
 .launch {
   background:
     linear-gradient(180deg, rgba(2, 9, 17, 0.2), rgba(2, 9, 17, 0.14) 48%, rgba(2, 9, 17, 0.38)),
-    url('/images/launch-background.png') center center / cover no-repeat !important;
+    url('/images/launch-background.webp') center center / cover no-repeat !important;
 }
 
 .launch::before {

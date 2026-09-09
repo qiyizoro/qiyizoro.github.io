@@ -44,12 +44,12 @@
   function render(track, photos, state) {
     track.replaceChildren();
     const pool = photos.length ? photos : [{ id: 'default', src: '/images/yeye-avatar.jpg', description: '椰椰' }];
-    const total = Math.max(18, pool.length * 5);
+    const total = Math.max(innerWidth < 700 ? 12 : 18, pool.length * (innerWidth < 700 ? 3 : 5));
     for (let i = 0; i < total; i++) {
       const photo = pool[i % pool.length];
       const card = document.createElement('button');
       card.type = 'button'; card.className = 'profile-dome-item'; card.dataset.id = photo.id; card.dataset.path = photo.storage_path || '';
-      card.innerHTML = `<img src="${photo.src}" alt="${photo.description || '人物照片'}" draggable="false">`;
+      card.innerHTML = `<img src="${photo.src}" alt="${photo.description || '人物照片'}" draggable="false" loading="lazy" decoding="async">`;
       let timer;
       const stop = () => { clearTimeout(timer); timer = null; };
       card.addEventListener('pointerdown', event => {
