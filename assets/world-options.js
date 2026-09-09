@@ -1,5 +1,6 @@
 (() => {
   const STORAGE_KEY = 'unknown-world-tree-bubbles';
+  const MAX_VISIBLE_BUBBLES = 24;
   const SUPABASE_URL = 'https://bwspbjatblwcfjgkuqbm.supabase.co';
   const API_KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
   const authKey = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
@@ -114,6 +115,10 @@
       element.remove();
     };
     const render = item => scene.append(bubbleElement(item, removeBubble));
+    const renderAll = () => {
+      scene.replaceChildren();
+      bubbles.slice(-MAX_VISIBLE_BUBBLES).forEach(render);
+    };
     const localBubbles = readBubbles();
     const cloudBubbles = await loadCloudBubbles();
     if (cloudBubbles) {
@@ -129,7 +134,7 @@
     } else {
       bubbles = localBubbles;
     }
-    bubbles.forEach(render);
+    renderAll();
     composer.onsubmit = async event => {
       event.preventDefault();
       const text = input.value.trim();
@@ -154,7 +159,7 @@
         return;
       }
       bubbles.push(uploaded);
-      render(uploaded);
+      renderAll();
       input.value = '';
       input.focus();
     };
@@ -164,8 +169,7 @@
       const latest = await loadCloudBubbles();
       if (latest && JSON.stringify(latest.map(item => item.cloudId)) !== JSON.stringify(bubbles.map(item => item.cloudId))) {
         bubbles = latest;
-        scene.replaceChildren();
-        bubbles.forEach(render);
+        renderAll();
       }
       setTimeout(refresh, 12000);
     };
