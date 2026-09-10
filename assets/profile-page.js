@@ -211,69 +211,92 @@
   }
 
   async function loadMessages(board) {
-    let messages = [];
+    let cloud = [];
     try {
-      const response = await fetch(`${API}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.${MESSAGE_LOCATION}&order=created_at.desc&limit=24`, { headers: headers() });
-      if (response.ok) messages = await response.json();
+      const response = await fetch(`${API}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.${MESSAGE_LOCATION}&order=created_at.desc&limit=24`, { headers: headers(auth()?.access_token) });
+      if (response.ok) cloud = await response.json();
     } catch {}
-    if (!messages.length) { try { messages = JSON.parse(localStorage.getItem('yeye-messages-v1') || '[]'); } catch {} }
+    let local = [];
+    try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
+    const cloudPaths = new Set(cloud.map(item => item.storage_path).filter(Boolean));
+    const messages = [...cloud, ...local.filter(item => !cloudPaths.has(item.storage_path))].slice(0, 32);
     const list = board.querySelector('.message-list');
     list.innerHTML = messages.map((item, index) => {
       const seed = [...String(item.id || index)].reduce((total, char) => total + char.charCodeAt(0), 0);
       const top = 12 + (seed % 6) * 14;
       const duration = 17 + seed % 13;
       const delay = -(seed % duration);
-      return `<article data-id="${escapeHtml(item.id)}" data-path="${escapeHtml(item.storage_path || '')}" style="--message-top:${top}%;--message-duration:${duration}s;--message-delay:${delay}s"><p>${escapeHtml(item.description)}</p><time>${new Date(item.created_at || Date.now()).toLocaleDateString('zh-CN')}</time><button type="button" aria-label="删除这条便签">×</button></article>`;
+      const cloudId = item.cloud_id || (cloud.includes(item) ? item.id : '');
+      return `<article data-id="${escapeHtml(item.id)}" data-cloud-id="${escapeHtml(cloudId)}" data-path="${escapeHtml(item.storage_path || '')}" style="--message-top:${top}%;--message-duration:${duration}s;--message-delay:${delay}s"><p>${escapeHtml(item.description)}</p><time>${item.pending ? '待同步' : new Date(item.created_at || Date.now()).toLocaleDateString('zh-CN')}</time><button type="button" aria-label="删除这条便签">×</button></article>`;
     }).join('');
     list.querySelectorAll('article button').forEach(button => {
       button.onclick = async event => {
         event.stopPropagation();
         if (!confirm('删除这条便签？')) return;
         const article = button.closest('article');
-        const id = article.dataset.id; const path = article.dataset.path; const user = auth();
-        if (path && !user?.access_token) { toast('请先登录后删除云端便签'); return; }
-        if (path && user?.access_token) {
-          const removed = await fetch(`${API}/rest/v1/memory_photos?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: headers(user.access_token) });
+        const id = article.dataset.id; const cloudId = article.dataset.cloudId; const path = article.dataset.path; const user = auth();
+        if (cloudId && !user?.access_token) { toast('请先登录后删除云端便签'); return; }
+        if (cloudId && user?.access_token) {
+          const removed = await fetch(`${API}/rest/v1/memory_photos?id=eq.${encodeURIComponent(cloudId)}`, { method: 'DELETE', headers: headers(user.access_token) });
           if (!removed.ok) { toast('删除失败，请稍后重试'); return; }
-          await fetch(`${API}/storage/v1/object/${BUCKET}`, { method: 'DELETE', headers: { ...headers(user.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify({ prefixes: [path] }) });
-        } else {
-          let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
-          localStorage.setItem('yeye-messages-v1', JSON.stringify(local.filter(item => String(item.id) !== String(id))));
         }
+        let saved = []; try { saved = JSON.parse(localStorage.getItem('yeye-messages-v2') || '[]'); } catch {}
+        localStorage.setItem('yeye-messages-v2', JSON.stringify(saved.filter(item => String(item.id) !== String(id) && item.storage_path !== path)));
         article.remove(); toast('便签已删除');
       };
     });
+  }
+
+  async function syncMessage(item) {
+    const session = auth();
+    if (!session?.access_token || !session?.user?.id) return null;
+    const response = await fetch(`${API}/rest/v1/memory_photos`, {
+      method: 'POST', headers: { ...headers(session.access_token), 'Content-Type': 'application/json', Prefer: 'return=representation' },
+      body: JSON.stringify({ storage_path: item.storage_path, description: item.description, location: MESSAGE_LOCATION, ratio: 1 })
+    });
+    if (!response.ok) return null;
+    const rows = await response.json();
+    return rows[0] || null;
+  }
+
+  async function retryPendingMessages(board) {
+    const session = auth(); if (!session?.access_token) return;
+    let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || '[]'); } catch {}
+    let changed = false;
+    for (const item of local.filter(message => message.pending)) {
+      const saved = await syncMessage(item);
+      if (saved) { item.pending = false; item.cloud_id = saved.id; changed = true; }
+    }
+    if (changed) { localStorage.setItem('yeye-messages-v2', JSON.stringify(local)); loadMessages(board); }
   }
 
   function addMessageBoard(main) {
     if (main.querySelector('.message-board')) return;
     const board = document.createElement('section');
     board.className = 'message-board';
-    board.innerHTML = '<div class="message-board-head"><p>NOTE WALL</p><h2>便签墙</h2></div><div class="message-list" aria-live="polite"></div><form><textarea maxlength="180" rows="3" placeholder="写下一张新便签…" required></textarea><button type="submit">添加便签</button></form>';
+    board.innerHTML = `<div class="message-board-head"><div><p>NOTE WALL</p><h2>便签墙</h2></div><span class="message-sync-state">${auth()?.access_token ? '云端同步' : '本机保存'}</span></div><div class="message-list" aria-live="polite"></div><form><textarea maxlength="180" rows="3" placeholder="写下一张新便签…" required></textarea><button type="submit">添加便签</button><div class="message-compose-meta"><span>Ctrl + Enter 快速添加</span><span class="message-counter">0 / 180</span></div></form>`;
     main.append(board);
     const footer = main.querySelector('footer');
     if (footer) main.append(footer);
+    const textarea = board.querySelector('textarea');
+    textarea.addEventListener('input', () => { board.querySelector('.message-counter').textContent = `${textarea.value.length} / 180`; });
+    textarea.addEventListener('keydown', event => { if (event.ctrlKey && event.key === 'Enter') board.querySelector('form').requestSubmit(); });
     board.querySelector('form').onsubmit = async event => {
       event.preventDefault(); const field = event.currentTarget.querySelector('textarea'); const value = field.value.trim(); if (!value) return;
       const session = auth();
-      if (session?.access_token) {
-        const path = `${session.user.id}/messages/${crypto.randomUUID()}.txt`;
-        const blob = new Blob([value], { type: 'text/plain;charset=utf-8' });
-        try {
-          const stored = await fetch(`${API}/storage/v1/object/${BUCKET}/${path}`, { method: 'POST', headers: { ...headers(session.access_token), 'Content-Type': blob.type, 'x-upsert': 'false' }, body: blob });
-          if (!stored.ok) throw new Error();
-          const saved = await fetch(`${API}/rest/v1/memory_photos`, { method: 'POST', headers: { ...headers(session.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify({ storage_path: path, description: value, location: MESSAGE_LOCATION, ratio: 1 }) });
-          if (!saved.ok) throw new Error();
-          toast('留言已同步');
-        } catch { toast('云端暂时没有保存成功'); return; }
-      } else {
-        let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
-        local.unshift({ id: crypto.randomUUID(), description: value, created_at: new Date().toISOString() });
-        localStorage.setItem('yeye-messages-v1', JSON.stringify(local.slice(0, 24))); toast('留言已保存在本机');
-      }
-      field.value = ''; loadMessages(board);
+      const id = crypto.randomUUID();
+      const item = { id, storage_path: `message-notes/${session?.user?.id || 'local'}/${id}.json`, description: value, created_at: new Date().toISOString(), pending: Boolean(session?.access_token) };
+      let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
+      local.unshift(item); localStorage.setItem('yeye-messages-v2', JSON.stringify(local.slice(0, 32)));
+      field.value = ''; board.querySelector('.message-counter').textContent = '0 / 180'; await loadMessages(board);
+      if (!session?.access_token) { toast('便签已保存在本机'); return; }
+      const saved = await syncMessage(item);
+      if (!saved) { toast('便签已保留，将在网络恢复后重试'); return; }
+      item.pending = false; item.cloud_id = saved.id;
+      localStorage.setItem('yeye-messages-v2', JSON.stringify(local));
+      toast('便签已同步'); loadMessages(board);
     };
-    loadMessages(board);
+    loadMessages(board).then(() => retryPendingMessages(board));
   }
 
   function addLetter(main) {
