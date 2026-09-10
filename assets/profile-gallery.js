@@ -3,6 +3,9 @@
   const API_KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
   const BUCKET = 'memory-photos';
   const PASSWORD = '5555';
+  const STATIC_IMAGES = [
+    '056f8550052ef2a7555dc495d3064df1','0addb386b7f786e53c5ad6847a782bea','1fd1855678d8fa031423a19010491f53','3263147644bb23d24ff02d477eb59d03','3f98db47244f789e80280a1c51228526','5d5333bce38857361496aef772864b8e','79c038e5c2b2ca5d95206ab5da4d88a9','7ae4495085217870411b607dc78e448a','7cfca71f0fa6267ef888f407802508e4','8b9a0eef5ef5679aff97aff934d99b72','8dcefcbba1a1a51ca4cf598b1e6de6b6','911c8439a12510f5abbcf6df0e2ec3ec','951bc00cf71f80d19fd3bd550287dba4','99738617959a1b485e924d87bd4c7daa','9e412ede1ac8cf2b19af0ecf48941383','af2de118db20750586a7305cbac18916','d9e04edbb2617d1962e15189cc6c5234'
+  ].map(name => ({ id: `static-${name}`, src: `/images/baby-gallery/${name}.webp`, description: '星环照片', static: true }));
   const authKey = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
   const headers = token => ({ apikey: API_KEY, Authorization: `Bearer ${token || API_KEY}` });
   const session = () => {
@@ -20,10 +23,13 @@
   }
 
   async function loadPhotos() {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,location,created_at&order=created_at.desc&limit=60`, { headers: headers(token()) });
-    if (!response.ok) return [];
-    const rows = (await response.json()).filter(row => !['WORLD_TREE_BUBBLE', 'YEYE_PROFILE', 'YEYE_MESSAGE_BOARD'].includes(row.location));
-    return (await Promise.all(rows.map(async row => ({ ...row, src: await signedUrl(row.storage_path) })))).filter(row => row.src);
+    let rows = [];
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,location,created_at&order=created_at.desc&limit=60`, { headers: headers(token()) });
+      if (response.ok) rows = (await response.json()).filter(row => !['WORLD_TREE_BUBBLE', 'YEYE_PROFILE', 'YEYE_MESSAGE_BOARD'].includes(row.location));
+    } catch {}
+    const cloud = (await Promise.all(rows.map(async row => ({ ...row, src: await signedUrl(row.storage_path) })))).filter(row => row.src);
+    return [...STATIC_IMAGES, ...cloud].sort(() => Math.random() - .5);
   }
 
   function positionItems(track, rotation = { x: -2, y: 0 }) {
@@ -76,6 +82,7 @@
 
   async function removePhoto(photo, state) {
     if (photo.id === 'default') return;
+    if (photo.static) { alert('这张照片来自“宝宝”固定图库，如需移除请更新图库文件。'); return; }
     if (prompt('请输入删除密码') !== PASSWORD) { alert('密码不正确'); return; }
     if (!token()) { alert('请先在“回忆灯塔”登录云端账号后再删除。'); return; }
     const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(photo.id)}`, { method: 'DELETE', headers: headers(token()) });
@@ -97,11 +104,23 @@
     const path = `${auth.user.id}/${crypto.randomUUID()}.${ext}`;
     state.addLabel.textContent = '正在上传…';
     const stored = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, { method: 'POST', headers: { ...headers(auth.access_token), 'Content-Type': file.type, 'x-upsert': 'false' }, body: file });
-    if (!stored.ok) { state.addLabel.textContent = '＋ 增加照片'; alert('照片上传失败，请稍后重试。'); return; }
+    if (!stored.ok) { state.addLabel.textContent = '上传照片'; alert('照片上传失败，请稍后重试。'); return false; }
     const ratio = await new Promise(resolve => { const img = new Image(); img.onload = () => resolve(Math.max(.75, Math.min(1.65, img.height / img.width))); img.onerror = () => resolve(1); img.src = URL.createObjectURL(file); });
     const saved = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, { method: 'POST', headers: { ...headers(auth.access_token), 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ storage_path: path, description: '椰椰的人物照片', location: '人物档案', ratio }) });
-    if (!saved.ok) { state.addLabel.textContent = '＋ 增加照片'; alert('照片信息保存失败。'); return; }
-    state.addLabel.textContent = '＋ 增加照片';
+    if (!saved.ok) { state.addLabel.textContent = '上传照片'; alert('照片信息保存失败。'); return false; }
+    state.addLabel.textContent = '上传照片';
+    return true;
+  }
+
+  async function uploadMany(files, state) {
+    const list = [...files];
+    if (!list.length) return;
+    for (let index = 0; index < list.length; index++) {
+      state.addLabel.textContent = `正在上传 ${index + 1}/${list.length}`;
+      const saved = await upload(list[index], state);
+      if (!saved) break;
+    }
+    state.addLabel.textContent = '上传照片';
     state.photos = await loadPhotos(); render(state.track, state.photos, state);
   }
 
@@ -109,10 +128,10 @@
     if (profile.dataset.galleryMounted) return;
     profile.dataset.galleryMounted = 'true'; profile.classList.add('magazine-profile');
     const section = document.createElement('section'); section.className = 'profile-gallery-section';
-    section.innerHTML = `<div class="profile-gallery-head"><div><small>PERSONAL MOMENTS</small><h2>椰椰的照片星环</h2></div><label class="profile-gallery-add"><span>＋ 增加照片</span><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><div class="profile-dome" aria-label="椰椰的照片展示墙"><div class="profile-dome-track"></div><div class="profile-dome-overlay"></div><div class="profile-dome-viewer" hidden><button type="button" aria-label="关闭照片">×</button><img alt=""></div></div><p class="profile-gallery-note">拖动探索照片 · 点击查看 · 手机长按或电脑右键删除</p>`;
+    section.innerHTML = `<div class="profile-gallery-head"><div><small>PERSONAL MOMENTS</small><h2>展示星环</h2></div><label class="profile-gallery-add"><span aria-hidden="true">＋</span><strong>上传照片</strong><small>支持多选</small><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><div class="profile-dome" aria-label="椰椰的照片展示墙"><div class="profile-dome-track"></div><div class="profile-dome-overlay"></div><div class="profile-dome-viewer" hidden><button type="button" aria-label="关闭照片">×</button><img alt=""></div></div><p class="profile-gallery-note">拖动探索照片 · 点击查看 · 手机长按或电脑右键删除</p>`;
     profile.after(section);
     const dome = section.querySelector('.profile-dome'), track = section.querySelector('.profile-dome-track');
-    const state = { section, track, photos: [], rotation: { x: -2, y: 0 }, moved: false, addLabel: section.querySelector('.profile-gallery-add span') };
+    const state = { section, track, photos: [], rotation: { x: -2, y: 0 }, moved: false, addLabel: section.querySelector('.profile-gallery-add strong') };
     state.photos = await loadPhotos(); render(track, state.photos, state);
     let down = false, startX = 0, startY = 0, startRotation, frame = 0, nextRotation, lastX = 0, lastY = 0, lastTime = 0, velocityX = 0, velocityY = 0, inertia = 0;
     const spin = () => {
@@ -139,7 +158,7 @@
     const closeViewer = () => { viewer.classList.remove('open'); setTimeout(() => { viewer.hidden = true; viewer.querySelector('img').removeAttribute('src'); }, 260); };
     viewer.addEventListener('click', event => { if (event.target === viewer || event.target.closest('button')) closeViewer(); });
     viewer.addEventListener('keydown', event => { if (event.key === 'Escape') closeViewer(); });
-    section.querySelector('input').addEventListener('change', event => { const file = event.target.files?.[0]; if (file) upload(file, state); event.target.value = ''; });
+    section.querySelector('input').addEventListener('change', async event => { const files = event.target.files; if (files?.length) await uploadMany(files, state); event.target.value = ''; });
     addEventListener('resize', () => positionItems(track, state.rotation), { passive: true });
   }
 

@@ -179,7 +179,7 @@
     });
     if (!response.ok) throw new Error('照片保存失败');
     card.querySelector('img').alt = description || '人物照片';
-    card.querySelector('.profile-photo-caption').textContent = description || '未命名瞬间';
+    const caption = card.querySelector('.profile-photo-caption'); if (caption) caption.textContent = description || '未命名瞬间';
     if (patch.storage_path) card.querySelector('img').src = await signedUrl(patch.storage_path);
   }
 
@@ -201,9 +201,6 @@
     const observeCards = () => section.querySelectorAll('.profile-dome-item').forEach(card => {
       if (card.dataset.editable) return;
       card.dataset.editable = 'true';
-      const caption = document.createElement('span');
-      caption.className = 'profile-photo-caption'; caption.textContent = card.querySelector('img')?.alt || '未命名瞬间';
-      card.append(caption);
       const edit = document.createElement('button');
       edit.type = 'button'; edit.className = 'profile-photo-edit'; edit.setAttribute('aria-label', '编辑这张照片'); edit.textContent = '✎';
       edit.addEventListener('click', event => { event.stopPropagation(); openPhotoEditor(card); });
