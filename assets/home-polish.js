@@ -61,6 +61,32 @@
 
   function polish() {
     renameBrand();
+    const entry = document.querySelector('.entry-dialog');
+    if (entry && !entry.dataset.riftPolished) {
+      entry.dataset.riftPolished = 'true';
+      entry.classList.add('entry-dialog--rift');
+      entry.querySelector('.eyebrow')?.remove();
+      const title = entry.querySelector('h2');
+      if (title) title.textContent = '时空裂隙正在开启';
+      entry.querySelector('h2 + p')?.remove();
+      const input = entry.querySelector('input');
+      if (input) {
+        input.placeholder = '你是谁';
+        input.setAttribute('aria-label', '你是谁');
+        input.setAttribute('autocomplete', 'nickname');
+        input.maxLength = 20;
+      }
+      const orbit = document.createElement('div');
+      orbit.className = 'entry-rift-orbit';
+      orbit.setAttribute('aria-hidden', 'true');
+      orbit.innerHTML = '<i></i><i></i><b>✦</b>';
+      entry.prepend(orbit);
+    }
+    if (entry) {
+      const input = entry.querySelector('input');
+      const error = entry.querySelector('small');
+      if (input && error && !input.value.trim()) error.textContent = '请先告诉我你是谁。';
+    }
     const hero = document.querySelector('.world-hero');
     if (hero) {
       const copy = hero.firstElementChild;
