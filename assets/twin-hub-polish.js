@@ -75,7 +75,11 @@
     const yeyeTag = cards[0]?.querySelector('div > p');
     const qiqiTag = cards[1]?.querySelector('div > p');
     if (yeyeTag) yeyeTag.textContent = '神秘宇宙公民';
-    if (qiqiTag) qiqiTag.textContent = '宇宙一级公民';
+    if (qiqiTag) qiqiTag.textContent = '特殊宇宙公民';
+    cards[0]?.querySelector('div > small')?.remove();
+    cards[1]?.querySelector('div > small')?.remove();
+    cards[2]?.querySelector('div > p')?.remove();
+    cards[3]?.querySelector('div')?.remove();
     syncPortraits(hub);
   }
 

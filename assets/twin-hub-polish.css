@@ -35,6 +35,13 @@
 .twin-orbits b { position: absolute; font-size: 13px; font-weight: 400; text-shadow: 0 0 15px currentColor; }
 .twin-orbits b:nth-of-type(1) { top: 14%; right: 16%; }
 .twin-orbits b:nth-of-type(2) { bottom: 18%; left: 9%; color: #86aabd; }
+.twin-orbits::before { animation: twin-orbit-drift 18s linear infinite; }
+.twin-orbits i:first-child { animation: twin-orbit-drift-reverse 24s linear infinite; }
+.twin-orbits b { animation: twin-star-breathe 3.8s ease-in-out infinite; }
+.twin-orbits b:nth-of-type(2) { animation-delay: -1.9s; }
+@keyframes twin-orbit-drift { to { transform: rotate(408deg) scaleY(.42); } }
+@keyframes twin-orbit-drift-reverse { to { transform: rotate(-376deg) scaleY(.67); } }
+@keyframes twin-star-breathe { 50% { opacity: .42; filter: brightness(1.5); } }
 .twin-cosmos-copy { display: flex; flex-direction: column; align-items: flex-start; white-space: nowrap; }
 .twin-cosmos-copy span { color: #81939e; font-size: 13px; margin-top: 8px; }
 .twin-cosmos-copy em { color: #dfbd75; font: 400 clamp(40px, 5vw, 66px)/1 var(--serif); font-style: normal; }
@@ -129,4 +136,7 @@
 @media (max-width: 480px) {
   .twin-subhero .twin-cosmos-mark { grid-template-columns: 82px auto; gap: 18px; min-height: 110px; }
   .twin-cosmos-copy em { font-size: 38px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .twin-orbits::before, .twin-orbits i, .twin-orbits b { animation: none!important; }
 }
