@@ -27,6 +27,12 @@
   display: none !important;
 }
 
+/* Keep the WebGL stars ambient and prevent costly pointer-driven updates. */
+.launch .galaxy-container,
+.launch .galaxy-container canvas {
+  pointer-events: none !important;
+}
+
 @media (max-width: 620px) {
   .launch {
     background-position: 51% center !important;
