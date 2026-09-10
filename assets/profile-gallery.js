@@ -11,21 +11,30 @@
     try { return JSON.parse(localStorage.getItem(authKey) || 'null'); } catch { return null; }
   };
   const token = () => session()?.access_token || '';
+  const mountedStates = new Set();
+  addEventListener('resize', () => {
+    mountedStates.forEach(state => {
+      if (!state.section.isConnected) mountedStates.delete(state);
+      else positionItems(state.track, state.rotation);
+    });
+  }, { passive: true });
 
   async function signedUrl(path) {
-    const response = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${encodeURI(path)}`, {
-      method: 'POST', headers: { ...headers(token()), 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 86400 })
-    });
-    if (!response.ok) return '';
-    const data = await response.json();
-    return data.signedURL ? `${SUPABASE_URL}/storage/v1${data.signedURL}` : '';
+    try {
+      const response = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${encodeURI(path)}`, {
+        method: 'POST', headers: { ...headers(token()), 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 86400 })
+      });
+      if (!response.ok) return '';
+      const data = await response.json();
+      return data.signedURL ? `${SUPABASE_URL}/storage/v1${data.signedURL}` : '';
+    } catch { return ''; }
   }
 
   async function loadPhotos() {
     let rows = [];
     try {
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,location,created_at&order=created_at.desc&limit=60`, { headers: headers(token()) });
-      if (response.ok) rows = (await response.json()).filter(row => !['WORLD_TREE_BUBBLE', 'YEYE_PROFILE', 'YEYE_MESSAGE_BOARD'].includes(row.location));
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,location,created_at&location=eq.%E4%BA%BA%E7%89%A9%E6%A1%A3%E6%A1%88&order=created_at.desc&limit=60`, { headers: headers(token()) });
+      if (response.ok) rows = await response.json();
     } catch {}
     const cloud = (await Promise.all(rows.map(async row => ({ ...row, src: await signedUrl(row.storage_path) })))).filter(row => row.src);
     return [...STATIC_IMAGES, ...cloud].sort(() => Math.random() - .5);
@@ -104,7 +113,7 @@
     state.addLabel.textContent = '正在上传…';
     const stored = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, { method: 'POST', headers: { ...headers(auth.access_token), 'Content-Type': file.type, 'x-upsert': 'false' }, body: file });
     if (!stored.ok) { state.addLabel.textContent = '上传照片'; alert('照片上传失败，请稍后重试。'); return false; }
-    const ratio = await new Promise(resolve => { const img = new Image(); img.onload = () => resolve(Math.max(.75, Math.min(1.65, img.height / img.width))); img.onerror = () => resolve(1); img.src = URL.createObjectURL(file); });
+    const ratio = await new Promise(resolve => { const img = new Image(); const url = URL.createObjectURL(file); img.onload = () => { URL.revokeObjectURL(url); resolve(Math.max(.75, Math.min(1.65, img.height / img.width))); }; img.onerror = () => { URL.revokeObjectURL(url); resolve(1); }; img.src = url; });
     const saved = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, { method: 'POST', headers: { ...headers(auth.access_token), 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify({ storage_path: path, description: '椰椰的人物照片', location: '人物档案', ratio }) });
     if (!saved.ok) { state.addLabel.textContent = '上传照片'; alert('照片信息保存失败。'); return false; }
     state.addLabel.textContent = '上传照片';
@@ -114,13 +123,18 @@
   async function uploadMany(files, state) {
     const list = [...files];
     if (!list.length) return;
-    for (let index = 0; index < list.length; index++) {
-      state.addLabel.textContent = `正在上传 ${index + 1}/${list.length}`;
-      const saved = await upload(list[index], state);
-      if (!saved) break;
+    try {
+      for (let index = 0; index < list.length; index++) {
+        state.addLabel.textContent = `正在上传 ${index + 1}/${list.length}`;
+        const saved = await upload(list[index], state);
+        if (!saved) break;
+      }
+      state.photos = await loadPhotos(); render(state.track, state.photos, state);
+    } catch {
+      alert('网络连接中断，照片暂未上传，请稍后重试。');
+    } finally {
+      state.addLabel.textContent = '上传照片';
     }
-    state.addLabel.textContent = '上传照片';
-    state.photos = await loadPhotos(); render(state.track, state.photos, state);
   }
 
   async function mount(profile) {
@@ -131,6 +145,7 @@
     profile.after(section);
     const dome = section.querySelector('.profile-dome'), track = section.querySelector('.profile-dome-track');
     const state = { section, track, photos: [], rotation: { x: -2, y: 0 }, moved: false, addLabel: section.querySelector('.profile-gallery-add strong') };
+    mountedStates.add(state);
     state.photos = await loadPhotos(); render(track, state.photos, state);
     let down = false, startX = 0, startY = 0, startRotation, frame = 0, nextRotation, lastX = 0, lastY = 0, lastTime = 0, velocityX = 0, velocityY = 0, inertia = 0;
     const spin = () => {
@@ -158,7 +173,6 @@
     viewer.addEventListener('click', event => { if (event.target === viewer || event.target.closest('button')) closeViewer(); });
     viewer.addEventListener('keydown', event => { if (event.key === 'Escape') closeViewer(); });
     section.querySelector('input').addEventListener('change', async event => { const files = event.target.files; if (files?.length) await uploadMany(files, state); event.target.value = ''; });
-    addEventListener('resize', () => positionItems(track, state.rotation), { passive: true });
   }
 
   let queued = false;

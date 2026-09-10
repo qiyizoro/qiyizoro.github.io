@@ -24,33 +24,39 @@
   };
 
   async function loadCloudBubbles() {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.WORLD_TREE_BUBBLE&order=created_at.asc&limit=200`, { headers: cloudHeaders(cloudSession()?.access_token) });
-    if (!response.ok) return null;
-    const rows = await response.json();
-    return rows.map(row => {
-      try { return { ...JSON.parse(row.description), cloudId: row.id, cloudPath: row.storage_path }; } catch { return null; }
-    }).filter(Boolean);
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.WORLD_TREE_BUBBLE&order=created_at.asc&limit=200`, { headers: cloudHeaders(cloudSession()?.access_token) });
+      if (!response.ok) return null;
+      const rows = await response.json();
+      return rows.map(row => {
+        try { return { ...JSON.parse(row.description), cloudId: row.id, cloudPath: row.storage_path }; } catch { return null; }
+      }).filter(Boolean);
+    } catch { return null; }
   }
 
   async function addCloudBubble(item) {
     const auth = cloudSession();
     if (!auth?.access_token || !auth?.user?.id) return null;
     const path = `tree-bubbles/${auth.user.id}/${item.id}.json`;
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, {
-      method: 'POST',
-      headers: cloudHeaders(auth.access_token, { 'Content-Type': 'application/json', Prefer: 'return=representation' }),
-      body: JSON.stringify({ storage_path: path, description: JSON.stringify(item), location: 'WORLD_TREE_BUBBLE', ratio: 1 })
-    });
-    if (!response.ok) return null;
-    const rows = await response.json();
-    return { ...item, cloudId: rows[0]?.id, cloudPath: path };
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, {
+        method: 'POST',
+        headers: cloudHeaders(auth.access_token, { 'Content-Type': 'application/json', Prefer: 'return=representation' }),
+        body: JSON.stringify({ storage_path: path, description: JSON.stringify(item), location: 'WORLD_TREE_BUBBLE', ratio: 1 })
+      });
+      if (!response.ok) return null;
+      const rows = await response.json();
+      return { ...item, cloudId: rows[0]?.id, cloudPath: path };
+    } catch { return null; }
   }
 
   async function deleteCloudBubble(item) {
     const auth = cloudSession();
     if (!auth?.access_token || !item.cloudId) return false;
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(item.cloudId)}`, { method: 'DELETE', headers: cloudHeaders(auth.access_token) });
-    return response.ok;
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(item.cloudId)}`, { method: 'DELETE', headers: cloudHeaders(auth.access_token) });
+      return response.ok;
+    } catch { return false; }
   }
 
   function bubbleElement(item, onDelete) {

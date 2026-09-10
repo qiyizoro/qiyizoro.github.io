@@ -37,6 +37,8 @@
   async function uploadFile(file, folder) {
     const session = auth();
     if (!session?.access_token || !session?.user?.id) throw new Error('请先在回忆灯塔登录，再保存到云端');
+    if (!file.type?.startsWith('image/')) throw new Error('请选择图片文件');
+    if (file.size > 15 * 1024 * 1024) throw new Error('图片不能超过 15MB');
     const ext = (file.name?.split('.').pop() || 'bin').toLowerCase();
     const path = `${session.user.id}/${folder}/${crypto.randomUUID()}.${ext}`;
     const response = await fetch(`${API}/storage/v1/object/${BUCKET}/${path}`, {
@@ -151,13 +153,7 @@
     const avatar = profile.querySelector('.avatar');
     if (avatar) {
       avatar.classList.add('profile-avatar-editable');
-      const avatarEdit = document.createElement('button');
-      avatarEdit.type = 'button'; avatarEdit.className = 'profile-avatar-edit'; avatarEdit.textContent = '更换照片';
-      avatarEdit.onclick = () => openProfileEditor(profile, config);
-      avatar.append(avatarEdit);
-      avatar.addEventListener('click', event => {
-        if (!event.target.closest('.profile-avatar-edit')) openProfileEditor(profile, config);
-      });
+      avatar.addEventListener('click', () => openProfileEditor(profile, config));
     }
     if (isYeye) {
       const chips = document.createElement('div');
@@ -285,7 +281,7 @@
       event.preventDefault(); const field = event.currentTarget.querySelector('textarea'); const value = field.value.trim(); if (!value) return;
       const session = auth();
       const id = crypto.randomUUID();
-      const item = { id, storage_path: `message-notes/${session?.user?.id || 'local'}/${id}.json`, description: value, created_at: new Date().toISOString(), pending: Boolean(session?.access_token) };
+      const item = { id, storage_path: `message-notes/${session?.user?.id || 'local'}/${id}.json`, description: value, created_at: new Date().toISOString(), pending: true };
       let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
       local.unshift(item); localStorage.setItem('yeye-messages-v2', JSON.stringify(local.slice(0, 32)));
       field.value = ''; board.querySelector('.message-counter').textContent = '0 / 180'; await loadMessages(board);

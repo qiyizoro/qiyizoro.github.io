@@ -32,12 +32,16 @@
   async function save(key, value) {
     localStorage.setItem(STORE[key], JSON.stringify(value));
     const auth = session(); if (!auth?.access_token) { toast('已保存在当前设备'); return; }
-    const response = await fetch(`${API}/rest/v1/site_data`, { method:'POST', headers:{ ...headers(auth.access_token), 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates' }, body:JSON.stringify({ key:STORE[key], value, updated_at:new Date().toISOString() }) });
-    toast(response.ok ? '已同步到云端' : '已保存在当前设备，云端同步稍后重试');
+    try {
+      const response = await fetch(`${API}/rest/v1/site_data`, { method:'POST', headers:{ ...headers(auth.access_token), 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates' }, body:JSON.stringify({ key:STORE[key], value, updated_at:new Date().toISOString() }) });
+      toast(response.ok ? '已同步到云端' : '已保存在当前设备，云端同步稍后重试');
+    } catch { toast('已保存在当前设备，网络恢复后可再次编辑同步'); }
   }
 
   async function upload(file) {
     if (!file?.size) return null;
+    if (!file.type?.startsWith('image/')) throw new Error('请选择图片文件');
+    if (file.size > 15 * 1024 * 1024) throw new Error('图片不能超过 15MB');
     const auth = session();
     if (!auth?.access_token || !auth?.user?.id) return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ image:reader.result }); reader.onerror = reject; reader.readAsDataURL(file); });
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase(); const path = `${auth.user.id}/qiqi-moments/${uid()}.${ext}`;
@@ -71,8 +75,8 @@
 
   async function mount() {
     const title = [...document.querySelectorAll('.subhero h1')].find(item => item.textContent.includes('柒柒'));
-    if (!title) { mounted = false; return; } if (mounted) return; mounted = true;
-    const sections = document.querySelectorAll('.diary-section'); if (sections.length < 2) return;
+    if (!title) { mounted = false; return; } if (mounted) return;
+    const sections = document.querySelectorAll('.diary-section'); if (sections.length < 2) return; mounted = true;
     let moments = await load('moments'); let notes = await load('notes');
     sections[0].innerHTML = '<div class="qiqi-section-head"><div><small>PERSONAL MOMENTS</small><h2>记录瞬间</h2></div><button type="button" class="qiqi-add">＋ 添加瞬间</button></div><div class="qiqi-moment-grid"></div>';
     sections[1].innerHTML = '<div class="qiqi-section-head"><div><small>DAILY NOTES</small><h2>每日碎碎念</h2></div><button type="button" class="qiqi-add">＋ 添加一句</button></div><div class="qiqi-note-list"></div>';
