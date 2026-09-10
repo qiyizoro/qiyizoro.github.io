@@ -2,7 +2,6 @@
   const SUPABASE_URL = 'https://bwspbjatblwcfjgkuqbm.supabase.co';
   const API_KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
   const BUCKET = 'memory-photos';
-  const PASSWORD = '5555';
   const STATIC_IMAGES = [
     '056f8550052ef2a7555dc495d3064df1','0addb386b7f786e53c5ad6847a782bea','1fd1855678d8fa031423a19010491f53','3263147644bb23d24ff02d477eb59d03','3f98db47244f789e80280a1c51228526','5d5333bce38857361496aef772864b8e','79c038e5c2b2ca5d95206ab5da4d88a9','7ae4495085217870411b607dc78e448a','7cfca71f0fa6267ef888f407802508e4','8b9a0eef5ef5679aff97aff934d99b72','8dcefcbba1a1a51ca4cf598b1e6de6b6','911c8439a12510f5abbcf6df0e2ec3ec','951bc00cf71f80d19fd3bd550287dba4','99738617959a1b485e924d87bd4c7daa','9e412ede1ac8cf2b19af0ecf48941383','af2de118db20750586a7305cbac18916','d9e04edbb2617d1962e15189cc6c5234'
   ].map(name => ({ id: `static-${name}`, src: `/images/baby-gallery/${name}.webp`, description: '星环照片', static: true }));
@@ -83,7 +82,7 @@
   async function removePhoto(photo, state) {
     if (photo.id === 'default') return;
     if (photo.static) { alert('这张照片来自“宝宝”固定图库，如需移除请更新图库文件。'); return; }
-    if (prompt('请输入删除密码') !== PASSWORD) { alert('密码不正确'); return; }
+    if (prompt('请输入删除密码') !== (globalThis.WorldPasswords?.get('photo-manager') || '5555')) { alert('密码不正确'); return; }
     if (!token()) { alert('请先在“回忆灯塔”登录云端账号后再删除。'); return; }
     const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(photo.id)}`, { method: 'DELETE', headers: headers(token()) });
     if (!response.ok) { alert('删除失败，请稍后重试。'); return; }

@@ -194,7 +194,7 @@
     x.onclick = () => close(layer);
     layer.onclick = event => { if (event.target === layer) close(layer); };
     const submit = () => {
-      if (input.value === '0520') { close(layer); openTree(); }
+      if (input.value === (globalThis.WorldPasswords?.get('world-tree') || '0520')) { close(layer); openTree(); }
       else { error.textContent = '密码不正确，请再试一次。'; input.select(); }
     };
     button.onclick = submit;
