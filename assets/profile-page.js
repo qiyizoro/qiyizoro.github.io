@@ -213,7 +213,7 @@
   async function loadMessages(board) {
     let messages = [];
     try {
-      const response = await fetch(`${API}/rest/v1/memory_photos?select=id,description,created_at&location=eq.${MESSAGE_LOCATION}&order=created_at.desc&limit=24`, { headers: headers() });
+      const response = await fetch(`${API}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.${MESSAGE_LOCATION}&order=created_at.desc&limit=24`, { headers: headers() });
       if (response.ok) messages = await response.json();
     } catch {}
     if (!messages.length) { try { messages = JSON.parse(localStorage.getItem('yeye-messages-v1') || '[]'); } catch {} }
@@ -223,15 +223,33 @@
       const top = 12 + (seed % 6) * 14;
       const duration = 17 + seed % 13;
       const delay = -(seed % duration);
-      return `<article style="--message-top:${top}%;--message-duration:${duration}s;--message-delay:${delay}s"><p>${escapeHtml(item.description)}</p><time>${new Date(item.created_at || Date.now()).toLocaleDateString('zh-CN')}</time></article>`;
+      return `<article data-id="${escapeHtml(item.id)}" data-path="${escapeHtml(item.storage_path || '')}" style="--message-top:${top}%;--message-duration:${duration}s;--message-delay:${delay}s"><p>${escapeHtml(item.description)}</p><time>${new Date(item.created_at || Date.now()).toLocaleDateString('zh-CN')}</time><button type="button" aria-label="删除这条便签">×</button></article>`;
     }).join('');
+    list.querySelectorAll('article button').forEach(button => {
+      button.onclick = async event => {
+        event.stopPropagation();
+        if (!confirm('删除这条便签？')) return;
+        const article = button.closest('article');
+        const id = article.dataset.id; const path = article.dataset.path; const user = auth();
+        if (path && !user?.access_token) { toast('请先登录后删除云端便签'); return; }
+        if (path && user?.access_token) {
+          const removed = await fetch(`${API}/rest/v1/memory_photos?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: headers(user.access_token) });
+          if (!removed.ok) { toast('删除失败，请稍后重试'); return; }
+          await fetch(`${API}/storage/v1/object/${BUCKET}`, { method: 'DELETE', headers: { ...headers(user.access_token), 'Content-Type': 'application/json' }, body: JSON.stringify({ prefixes: [path] }) });
+        } else {
+          let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
+          localStorage.setItem('yeye-messages-v1', JSON.stringify(local.filter(item => String(item.id) !== String(id))));
+        }
+        article.remove(); toast('便签已删除');
+      };
+    });
   }
 
   function addMessageBoard(main) {
     if (main.querySelector('.message-board')) return;
     const board = document.createElement('section');
     board.className = 'message-board';
-    board.innerHTML = '<div class="message-board-head"><p>MESSAGE BOARD</p><h2>留言板</h2></div><div class="message-list" aria-live="polite"></div><form><textarea maxlength="180" rows="3" placeholder="写下想留给她的话…" required></textarea><button type="submit">留下这句话</button></form>';
+    board.innerHTML = '<div class="message-board-head"><p>NOTE WALL</p><h2>便签墙</h2></div><div class="message-list" aria-live="polite"></div><form><textarea maxlength="180" rows="3" placeholder="写下一张新便签…" required></textarea><button type="submit">添加便签</button></form>';
     main.append(board);
     const footer = main.querySelector('footer');
     if (footer) main.append(footer);

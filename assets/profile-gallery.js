@@ -30,13 +30,13 @@
     const mobile = innerWidth < 700;
     const cards = [...track.children];
     const count = Math.max(cards.length, 1);
-    const radius = mobile ? 330 : 500;
+    const radius = mobile ? 270 : 410;
     cards.forEach((card, index) => {
       const angle = ((index / count) * 360 + offset) * Math.PI / 180;
       const x = Math.sin(angle) * radius;
       const z = Math.cos(angle) * radius - radius;
       const row = index % 3 - 1;
-      card.style.transform = `translate3d(${x}px,${row * (mobile ? 118 : 155)}px,${z}px) rotateY(${angle * 180 / Math.PI}deg)`;
+      card.style.transform = `translate3d(${x}px,${row * (mobile ? 100 : 125)}px,${z}px) rotateY(${angle * 180 / Math.PI}deg)`;
       card.style.opacity = Math.cos(angle) < -.62 ? '.12' : '1';
     });
   }
@@ -44,7 +44,7 @@
   function render(track, photos, state) {
     track.replaceChildren();
     const pool = photos.length ? photos : [{ id: 'default', src: '/images/yeye-avatar.jpg', description: '椰椰' }];
-    const total = Math.max(innerWidth < 700 ? 12 : 18, pool.length * (innerWidth < 700 ? 3 : 5));
+    const total = Math.min(innerWidth < 700 ? 22 : 30, Math.max(innerWidth < 700 ? 14 : 20, pool.length * 2));
     for (let i = 0; i < total; i++) {
       const photo = pool[i % pool.length];
       const card = document.createElement('button');
@@ -103,9 +103,14 @@
     const dome = section.querySelector('.profile-dome'), track = section.querySelector('.profile-dome-track');
     const state = { track, photos: [], offset: 0, addLabel: section.querySelector('.profile-gallery-add span') };
     state.photos = await loadPhotos(); render(track, state.photos, state);
-    let down = false, startX = 0, startOffset = 0;
+    let down = false, startX = 0, startOffset = 0, frame = 0, nextOffset = 0;
     dome.addEventListener('pointerdown', event => { down = true; startX = event.clientX; startOffset = state.offset; dome.classList.add('dragging'); dome.setPointerCapture?.(event.pointerId); });
-    dome.addEventListener('pointermove', event => { if (!down) return; state.offset = startOffset + (event.clientX - startX) * .18; positionItems(track, state.offset); });
+    dome.addEventListener('pointermove', event => {
+      if (!down) return;
+      nextOffset = startOffset + (event.clientX - startX) * .24;
+      if (frame) return;
+      frame = requestAnimationFrame(() => { state.offset = nextOffset; positionItems(track, state.offset); frame = 0; });
+    });
     const up = () => { down = false; dome.classList.remove('dragging'); };
     dome.addEventListener('pointerup', up); dome.addEventListener('pointercancel', up);
     section.querySelector('input').addEventListener('change', event => { const file = event.target.files?.[0]; if (file) upload(file, state); event.target.value = ''; });
