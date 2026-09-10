@@ -63,6 +63,7 @@
       name: copy?.querySelector('h2')?.textContent.trim() || '椰椰',
       description: copy?.querySelector('p')?.textContent.trim() || '',
       quote: copy?.querySelector('blockquote')?.textContent.trim().replace(/[“”]/g, '') || '',
+      traits: [...copy?.querySelectorAll('.profile-chips span') || []].map(item => item.textContent.trim()),
       avatarPath: profile.dataset.avatarPath || ''
     };
   }
@@ -73,6 +74,11 @@
     if (data.name) copy.querySelector('h2').textContent = data.name;
     if (data.description) copy.querySelector('p').textContent = data.description;
     if (data.quote && copy.querySelector('blockquote')) copy.querySelector('blockquote').textContent = `“${data.quote}”`;
+    if (Array.isArray(data.traits) && data.traits.length) {
+      let chips = copy.querySelector('.profile-chips');
+      if (!chips) { chips = document.createElement('div'); chips.className = 'profile-chips'; copy.append(chips); }
+      chips.replaceChildren(...data.traits.map(value => { const chip = document.createElement('span'); chip.textContent = value; return chip; }));
+    }
     if (data.avatarPath) profile.dataset.avatarPath = data.avatarPath;
     if (data.avatarUrl) {
       const avatar = profile.querySelector('.avatar');
@@ -104,11 +110,12 @@
 
   function openProfileEditor(profile, config) {
     const value = profileValues(profile);
-    const modal = dialog('编辑人物资料', `<form class="profile-form"><label>名字<input name="name" maxlength="20" value="${escapeHtml(value.name)}"></label><label>人物说明<textarea name="description" rows="5" maxlength="300">${escapeHtml(value.description)}</textarea></label><label>代表语<input name="quote" maxlength="80" value="${escapeHtml(value.quote)}"></label><label class="profile-file">更换人物照片<input name="avatar" type="file" accept="image/*"></label><button class="profile-save" type="submit">保存资料</button></form>`);
+    const modal = dialog('编辑人物资料', `<form class="profile-form"><label>名字<input name="name" maxlength="20" value="${escapeHtml(value.name)}"></label><label>人物说明<textarea name="description" rows="5" maxlength="300">${escapeHtml(value.description)}</textarea></label><label>人物特点<textarea name="traits" rows="3" maxlength="180" placeholder="用逗号分隔，例如：睿智，小龙虾，敏锐感知">${escapeHtml(value.traits.join('，'))}</textarea></label><label>代表语<input name="quote" maxlength="80" value="${escapeHtml(value.quote)}"></label><label class="profile-file">更换人物照片<input name="avatar" type="file" accept="image/*"></label><button class="profile-save" type="submit">保存资料</button></form>`);
     modal.layer.querySelector('form').onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const data = { name: form.get('name').trim(), description: form.get('description').trim(), quote: form.get('quote').trim(), avatarPath: value.avatarPath };
+      const traits = form.get('traits').split(/[，,、]+/).map(item => item.trim()).filter(Boolean).slice(0, 8);
+      const data = { name: form.get('name').trim(), description: form.get('description').trim(), traits, quote: form.get('quote').trim(), avatarPath: value.avatarPath };
       const file = form.get('avatar');
       const session = auth();
       try {

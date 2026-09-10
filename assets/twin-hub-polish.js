@@ -51,8 +51,16 @@
     if (!heading) return;
 
     const subhero = heading.closest('.subhero');
+    subhero?.classList.add('twin-subhero');
     const intro = subhero?.querySelector('p:not(.eyebrow)');
     if (intro) intro.textContent = '选择要进入的区域';
+    if (subhero && !subhero.querySelector('.twin-cosmos-mark')) {
+      const mark = document.createElement('div');
+      mark.className = 'twin-cosmos-mark';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.innerHTML = '<div class="twin-orbits"><i></i><i></i><b>✦</b><b>✦</b></div><div class="twin-cosmos-copy"><small>DUAL UNIVERSE COORDINATES</small><strong>双人宇宙坐标</strong><span><em>04</em> 个区域已连接</span></div>';
+      subhero.append(mark);
+    }
 
     const hub = document.querySelector('.twin-hub');
     if (!hub) return;
@@ -62,6 +70,11 @@
       if (!names[index]) return;
       card.classList.add(`twin-module--${names[index]}`);
     });
+    const cards = hub.querySelectorAll('.twin-module');
+    const yeyeTag = cards[0]?.querySelector('div > p');
+    const qiqiTag = cards[1]?.querySelector('div > p');
+    if (yeyeTag) yeyeTag.textContent = '神秘宇宙公民';
+    if (qiqiTag) qiqiTag.textContent = '宇宙一级公民';
     syncPortraits(hub);
   }
 
