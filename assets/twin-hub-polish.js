@@ -52,13 +52,14 @@
 
     const subhero = heading.closest('.subhero');
     subhero?.classList.add('twin-subhero');
+    subhero?.querySelector('.eyebrow')?.classList.add('twin-subhero-hidden');
     const intro = subhero?.querySelector('p:not(.eyebrow)');
-    if (intro) intro.textContent = '选择要进入的区域';
+    if (intro) intro.textContent = '四个入口，通往各自与共同的故事。';
     if (subhero && !subhero.querySelector('.twin-cosmos-mark')) {
       const mark = document.createElement('div');
       mark.className = 'twin-cosmos-mark';
       mark.setAttribute('aria-hidden', 'true');
-      mark.innerHTML = '<div class="twin-orbits"><i></i><i></i><b>✦</b><b>✦</b></div><div class="twin-cosmos-copy"><small>DUAL UNIVERSE COORDINATES</small><strong>双人宇宙坐标</strong><span><em>04</em> 个区域已连接</span></div>';
+      mark.innerHTML = '<div class="twin-orbits"><i></i><i></i><b>✦</b><b>✦</b></div><div class="twin-cosmos-copy"><em>04</em><span>个可探索入口</span></div>';
       subhero.append(mark);
     }
 
