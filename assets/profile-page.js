@@ -204,7 +204,10 @@
       const caption = document.createElement('span');
       caption.className = 'profile-photo-caption'; caption.textContent = card.querySelector('img')?.alt || '未命名瞬间';
       card.append(caption);
-      card.addEventListener('click', event => { event.stopPropagation(); openPhotoEditor(card); });
+      const edit = document.createElement('button');
+      edit.type = 'button'; edit.className = 'profile-photo-edit'; edit.setAttribute('aria-label', '编辑这张照片'); edit.textContent = '✎';
+      edit.addEventListener('click', event => { event.stopPropagation(); openPhotoEditor(card); });
+      card.append(edit);
     });
     new MutationObserver(observeCards).observe(section.querySelector('.profile-dome-track'), { childList: true });
     observeCards();

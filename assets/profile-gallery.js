@@ -26,29 +26,38 @@
     return (await Promise.all(rows.map(async row => ({ ...row, src: await signedUrl(row.storage_path) })))).filter(row => row.src);
   }
 
-  function positionItems(track, offset = 0) {
-    const mobile = innerWidth < 700;
+  function positionItems(track, rotation = { x: -2, y: 0 }) {
     const cards = [...track.children];
-    const count = Math.max(cards.length, 1);
-    const radius = mobile ? 225 : Math.min(335, innerWidth * .31);
+    const columns = Math.max(8, Math.ceil(cards.length / 3));
+    const rows = Math.ceil(cards.length / columns);
+    const radius = innerWidth < 700 ? 300 : Math.min(520, Math.max(390, innerWidth * .43));
+    track.parentElement?.style.setProperty('--dome-radius', `${radius}px`);
     cards.forEach((card, index) => {
-      const angle = ((index / count) * 360 + offset) * Math.PI / 180;
-      const x = Math.sin(angle) * radius;
-      const z = Math.cos(angle) * radius - radius;
-      const row = index % 3 - 1;
-      card.style.transform = `translate3d(${x}px,${row * (mobile ? 88 : 104)}px,${z}px) rotateY(${angle * 180 / Math.PI}deg)`;
-      card.style.opacity = Math.cos(angle) < -.62 ? '.12' : '1';
+      const row = Math.floor(index / columns);
+      const column = index % columns;
+      const angleY = column / columns * 360 + (row % 2 ? 180 / columns : 0);
+      const angleX = (row - (rows - 1) / 2) * (innerWidth < 700 ? 19 : 17);
+      card.style.transform = `rotateY(${angleY}deg) rotateX(${-angleX}deg) translateZ(${radius}px)`;
     });
+    track.style.transform = `translateZ(${-radius}px) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`;
+  }
+
+  function showPhoto(section, photo) {
+    const viewer = section.querySelector('.profile-dome-viewer');
+    viewer.querySelector('img').src = photo.src;
+    viewer.querySelector('img').alt = photo.description || '照片预览';
+    viewer.hidden = false;
+    requestAnimationFrame(() => viewer.classList.add('open'));
   }
 
   function render(track, photos, state) {
     track.replaceChildren();
     const pool = photos.length ? photos : [{ id: 'default', src: '/images/yeye-avatar.jpg', description: '椰椰' }];
-    const total = Math.min(innerWidth < 700 ? 22 : 30, Math.max(innerWidth < 700 ? 14 : 20, pool.length * 2));
+    const total = Math.min(innerWidth < 700 ? 24 : 36, Math.max(innerWidth < 700 ? 18 : 27, pool.length * 2));
     for (let i = 0; i < total; i++) {
       const photo = pool[i % pool.length];
-      const card = document.createElement('button');
-      card.type = 'button'; card.className = 'profile-dome-item'; card.dataset.id = photo.id; card.dataset.path = photo.storage_path || '';
+      const card = document.createElement('div');
+      card.className = 'profile-dome-item'; card.tabIndex = 0; card.setAttribute('role', 'button'); card.setAttribute('aria-label', photo.description || '查看照片'); card.dataset.id = photo.id; card.dataset.path = photo.storage_path || '';
       card.innerHTML = `<img src="${photo.src}" alt="${photo.description || '人物照片'}" draggable="false" loading="lazy" decoding="async">`;
       let timer;
       const stop = () => { clearTimeout(timer); timer = null; };
@@ -58,9 +67,11 @@
       });
       ['pointerup', 'pointercancel', 'pointermove'].forEach(name => card.addEventListener(name, stop));
       card.addEventListener('contextmenu', event => { event.preventDefault(); removePhoto(photo, state); });
+      card.addEventListener('click', () => { if (!state.moved) showPhoto(state.section, photo); });
+      card.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('.profile-photo-edit')) { event.preventDefault(); showPhoto(state.section, photo); } });
       track.append(card);
     }
-    positionItems(track, state.offset);
+    positionItems(track, state.rotation);
   }
 
   async function removePhoto(photo, state) {
@@ -98,23 +109,38 @@
     if (profile.dataset.galleryMounted) return;
     profile.dataset.galleryMounted = 'true'; profile.classList.add('magazine-profile');
     const section = document.createElement('section'); section.className = 'profile-gallery-section';
-    section.innerHTML = `<div class="profile-gallery-head"><div><small>PERSONAL MOMENTS</small><h2>椰椰的照片星环</h2></div><label class="profile-gallery-add"><span>＋ 增加照片</span><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><div class="profile-dome" aria-label="椰椰的照片展示墙"><div class="profile-dome-track"></div></div><p class="profile-gallery-note">拖动探索照片 · 点击查看 · 手机长按或电脑右键删除</p>`;
+    section.innerHTML = `<div class="profile-gallery-head"><div><small>PERSONAL MOMENTS</small><h2>椰椰的照片星环</h2></div><label class="profile-gallery-add"><span>＋ 增加照片</span><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><div class="profile-dome" aria-label="椰椰的照片展示墙"><div class="profile-dome-track"></div><div class="profile-dome-overlay"></div><div class="profile-dome-viewer" hidden><button type="button" aria-label="关闭照片">×</button><img alt=""></div></div><p class="profile-gallery-note">拖动探索照片 · 点击查看 · 手机长按或电脑右键删除</p>`;
     profile.after(section);
     const dome = section.querySelector('.profile-dome'), track = section.querySelector('.profile-dome-track');
-    const state = { track, photos: [], offset: 0, addLabel: section.querySelector('.profile-gallery-add span') };
+    const state = { section, track, photos: [], rotation: { x: -2, y: 0 }, moved: false, addLabel: section.querySelector('.profile-gallery-add span') };
     state.photos = await loadPhotos(); render(track, state.photos, state);
-    let down = false, startX = 0, startOffset = 0, frame = 0, nextOffset = 0;
-    dome.addEventListener('pointerdown', event => { down = true; startX = event.clientX; startOffset = state.offset; dome.classList.add('dragging'); dome.setPointerCapture?.(event.pointerId); });
+    let down = false, startX = 0, startY = 0, startRotation, frame = 0, nextRotation, lastX = 0, lastY = 0, lastTime = 0, velocityX = 0, velocityY = 0, inertia = 0;
+    const spin = () => {
+      velocityX *= .94; velocityY *= .94;
+      state.rotation.y += velocityX; state.rotation.x = Math.max(-16, Math.min(16, state.rotation.x - velocityY));
+      positionItems(track, state.rotation);
+      if (Math.abs(velocityX) + Math.abs(velocityY) > .025) inertia = requestAnimationFrame(spin); else inertia = 0;
+    };
+    dome.addEventListener('pointerdown', event => { cancelAnimationFrame(inertia); down = true; state.moved = false; startX = lastX = event.clientX; startY = lastY = event.clientY; lastTime = performance.now(); startRotation = { ...state.rotation }; dome.classList.add('dragging'); dome.setPointerCapture?.(event.pointerId); });
     dome.addEventListener('pointermove', event => {
       if (!down) return;
-      nextOffset = startOffset + (event.clientX - startX) * .3;
+      const dx = event.clientX - startX, dy = event.clientY - startY;
+      if (Math.abs(dx) + Math.abs(dy) > 5) state.moved = true;
+      nextRotation = { x: Math.max(-16, Math.min(16, startRotation.x - dy * .055)), y: startRotation.y + dx * .12 };
+      const now = performance.now(), elapsed = Math.max(8, now - lastTime);
+      velocityX = (event.clientX - lastX) / elapsed * 7; velocityY = (event.clientY - lastY) / elapsed * 2.7;
+      lastX = event.clientX; lastY = event.clientY; lastTime = now;
       if (frame) return;
-      frame = requestAnimationFrame(() => { state.offset = nextOffset; positionItems(track, state.offset); frame = 0; });
+      frame = requestAnimationFrame(() => { state.rotation = nextRotation; positionItems(track, state.rotation); frame = 0; });
     });
-    const up = () => { down = false; dome.classList.remove('dragging'); };
+    const up = () => { if (!down) return; down = false; dome.classList.remove('dragging'); if (state.moved) { clearTimeout(state.clickTimer); state.clickTimer = setTimeout(() => { state.moved = false; }, 120); inertia = requestAnimationFrame(spin); } };
     dome.addEventListener('pointerup', up); dome.addEventListener('pointercancel', up);
+    const viewer = section.querySelector('.profile-dome-viewer');
+    const closeViewer = () => { viewer.classList.remove('open'); setTimeout(() => { viewer.hidden = true; viewer.querySelector('img').removeAttribute('src'); }, 260); };
+    viewer.addEventListener('click', event => { if (event.target === viewer || event.target.closest('button')) closeViewer(); });
+    viewer.addEventListener('keydown', event => { if (event.key === 'Escape') closeViewer(); });
     section.querySelector('input').addEventListener('change', event => { const file = event.target.files?.[0]; if (file) upload(file, state); event.target.value = ''; });
-    addEventListener('resize', () => positionItems(track, state.offset), { passive: true });
+    addEventListener('resize', () => positionItems(track, state.rotation), { passive: true });
   }
 
   let queued = false;
