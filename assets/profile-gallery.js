@@ -30,13 +30,13 @@
     const mobile = innerWidth < 700;
     const cards = [...track.children];
     const count = Math.max(cards.length, 1);
-    const radius = mobile ? 270 : 410;
+    const radius = mobile ? 225 : Math.min(335, innerWidth * .31);
     cards.forEach((card, index) => {
       const angle = ((index / count) * 360 + offset) * Math.PI / 180;
       const x = Math.sin(angle) * radius;
       const z = Math.cos(angle) * radius - radius;
       const row = index % 3 - 1;
-      card.style.transform = `translate3d(${x}px,${row * (mobile ? 100 : 125)}px,${z}px) rotateY(${angle * 180 / Math.PI}deg)`;
+      card.style.transform = `translate3d(${x}px,${row * (mobile ? 88 : 104)}px,${z}px) rotateY(${angle * 180 / Math.PI}deg)`;
       card.style.opacity = Math.cos(angle) < -.62 ? '.12' : '1';
     });
   }
@@ -107,7 +107,7 @@
     dome.addEventListener('pointerdown', event => { down = true; startX = event.clientX; startOffset = state.offset; dome.classList.add('dragging'); dome.setPointerCapture?.(event.pointerId); });
     dome.addEventListener('pointermove', event => {
       if (!down) return;
-      nextOffset = startOffset + (event.clientX - startX) * .24;
+      nextOffset = startOffset + (event.clientX - startX) * .3;
       if (frame) return;
       frame = requestAnimationFrame(() => { state.offset = nextOffset; positionItems(track, state.offset); frame = 0; });
     });
