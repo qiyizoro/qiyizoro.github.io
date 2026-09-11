@@ -1,7 +1,20 @@
 .launch {
+  width: 100%;
+  height: 100dvh !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh;
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(2, 9, 17, 0.2), rgba(2, 9, 17, 0.14) 48%, rgba(2, 9, 17, 0.38)),
     url('/images/launch-background.webp') center center / cover no-repeat !important;
+}
+
+body:has(.launch),
+.app:has(> .launch) {
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
 }
 
 .launch::before {
@@ -36,6 +49,7 @@
 @media (max-width: 620px) {
   .launch {
     background-position: 51% center !important;
+    min-height: 100dvh !important;
   }
 
   .launch .launch-copy {

@@ -71,8 +71,8 @@
       entry.querySelector('h2 + p')?.remove();
       const input = entry.querySelector('input');
       if (input) {
-        input.placeholder = '你是谁';
-        input.setAttribute('aria-label', '你是谁');
+        input.placeholder = '';
+        input.setAttribute('aria-label', '身份名称');
         input.setAttribute('autocomplete', 'nickname');
         input.maxLength = 20;
       }
