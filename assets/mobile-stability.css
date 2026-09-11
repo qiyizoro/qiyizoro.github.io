@@ -103,6 +103,12 @@ button { box-sizing: border-box; }
     height: min(48vh, 280px);
   }
 
+  .memory-editor h2 { margin-bottom: 18px; }
+
+  .memory-editor > label:not(.memory-image-picker) { margin-top: 12px; }
+
+  .memory-editor .memory-save { margin-top: 16px; }
+
   .memory-image-picker img,
   .image-picker img {
     width: 100%;

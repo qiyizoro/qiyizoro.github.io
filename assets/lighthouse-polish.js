@@ -23,10 +23,18 @@
     });
     document.querySelectorAll('.memory-tile').forEach(tile => {
       if (tile.textContent.includes('WORLD_TREE_BUBBLE')) tile.classList.add('lighthouse-hidden');
+      if (!tile.hasAttribute('tabindex')) tile.tabIndex = 0;
+      tile.setAttribute('role', 'button');
+      tile.setAttribute('aria-label', tile.querySelector('img')?.alt || '查看回忆照片');
+    });
+    document.querySelectorAll('.memory-add').forEach(button => {
+      const text = [...button.childNodes].find(node => node.nodeType === Node.TEXT_NODE);
+      if (text) text.textContent = '添加照片';
     });
   }
 
   function openLightbox(tile) {
+    if (document.querySelector('.memory-lightbox')) return;
     const source = tile.querySelector('img');
     if (!source) return;
     const layer = document.createElement('div');
@@ -55,9 +63,36 @@
   }
 
   document.addEventListener('click', event => {
+    if (performance.now() < suppressClickUntil) return;
     if (event.target.closest('.memory-delete, .memory-add, .memory-editor')) return;
     const tile = event.target.closest('.memory-tile');
     if (tile) openLightbox(tile);
+  });
+
+  let touchStart = null;
+  let suppressClickUntil = 0;
+  document.addEventListener('pointerdown', event => {
+    if (event.pointerType !== 'touch' || !event.target.closest('.memory-tile')) return;
+    touchStart = { x: event.clientX, y: event.clientY, at: performance.now(), id: event.pointerId };
+  }, { passive: true });
+  document.addEventListener('pointerup', event => {
+    if (!touchStart || touchStart.id !== event.pointerId) return;
+    const start = touchStart;
+    touchStart = null;
+    if (Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10 || performance.now() - start.at > 550) return;
+    if (event.target.closest('.memory-delete, .memory-add, .memory-editor')) return;
+    const tile = event.target.closest('.memory-tile');
+    if (!tile) return;
+    suppressClickUntil = performance.now() + 500;
+    openLightbox(tile);
+  }, { passive: true });
+  document.addEventListener('pointercancel', () => { touchStart = null; }, { passive: true });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const tile = event.target.closest('.memory-tile');
+    if (!tile) return;
+    event.preventDefault();
+    openLightbox(tile);
   });
   let queued = false;
   const schedule = () => {
