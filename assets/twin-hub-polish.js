@@ -79,7 +79,7 @@
     cards[0]?.querySelector('div > small')?.remove();
     cards[1]?.querySelector('div > small')?.remove();
     cards[2]?.querySelector('div > p')?.remove();
-    cards[3]?.querySelector('div')?.remove();
+    cards[3]?.querySelector('div > p')?.remove();
     syncPortraits(hub);
   }
 
