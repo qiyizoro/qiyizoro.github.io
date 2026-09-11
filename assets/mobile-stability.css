@@ -1,0 +1,153 @@
+/* Mobile safety layer: prevents iOS form zoom and keeps editors inside the viewport. */
+html {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body,
+#root,
+.app,
+main {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+img,
+video,
+canvas,
+svg { max-width: 100%; }
+
+button,
+a,
+label,
+input,
+textarea,
+select { touch-action: manipulation; }
+
+input,
+textarea,
+select,
+button { box-sizing: border-box; }
+
+@media (max-width: 720px) {
+  input,
+  textarea,
+  select {
+    /* iOS Safari zooms the page when a smaller form control receives focus. */
+    font-size: 16px !important;
+  }
+
+  .editor-backdrop,
+  .memory-editor-backdrop,
+  .entry-backdrop,
+  .profile-editor-layer,
+  .qiqi-modal-layer,
+  .password-center-layer {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-items: safe center;
+  }
+
+  .spot-editor,
+  .memory-editor,
+  .entry-dialog,
+  .simple-composer,
+  .delete-dialog,
+  .profile-editor-card,
+  .qiqi-modal,
+  .password-center-card {
+    box-sizing: border-box;
+    width: 100% !important;
+    max-width: min(100%, 560px) !important;
+    min-width: 0 !important;
+    max-height: calc(100dvh - 24px);
+    margin: auto;
+    padding: 24px 16px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .memory-editor > *,
+  .spot-editor > *,
+  .entry-dialog > *,
+  .profile-editor-card > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .memory-editor input:not([type='file']),
+  .memory-editor textarea,
+  .spot-editor input:not([type='file']),
+  .spot-editor textarea,
+  .entry-dialog input,
+  .profile-editor-card input,
+  .profile-editor-card textarea {
+    display: block;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .memory-image-picker,
+  .image-picker {
+    width: 100%;
+    min-width: 0;
+    height: min(48vh, 280px);
+  }
+
+  .memory-image-picker img,
+  .image-picker img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .memory-add {
+    box-sizing: border-box;
+    width: calc(100% - 28px) !important;
+    min-width: 0;
+    padding: 15px 16px !important;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .memory-tile,
+  .memory-tile__copy,
+  .memory-tile__copy p,
+  .memory-tile__copy small {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  footer {
+    box-sizing: border-box;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px 18px;
+    width: auto;
+    max-width: calc(100% - 36px);
+    text-align: center;
+  }
+}
+
+@media (max-width: 390px) {
+  .spot-editor,
+  .memory-editor,
+  .entry-dialog,
+  .simple-composer,
+  .delete-dialog,
+  .profile-editor-card,
+  .qiqi-modal,
+  .password-center-card { padding: 21px 14px; }
+}
