@@ -64,11 +64,12 @@
   async function openGate() {
     if (document.querySelector('.password-center-layer')) return;
     if (Number(sessionStorage.getItem(UNLOCK_KEY) || 0) > Date.now()) { await cloudReady; openCenter(); return; }
-    const layer = makeLayer('<form class="password-gate" role="dialog" aria-modal="true"><button type="button" class="password-center-close" aria-label="关闭">×</button><p class="password-center-kicker">SETTINGS</p><h2>进入设置</h2><p>请输入管理密码</p><input type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="四位密码"><button class="password-center-save">确认进入</button><em aria-live="polite"></em></form>');
+    const layer = makeLayer('<form class="password-gate" role="dialog" aria-modal="true"><button type="button" class="password-center-close" aria-label="关闭">×</button><p class="password-center-kicker">SETTINGS</p><h2>进入设置</h2><p>请输入管理密码</p><input type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="四位密码"><button type="submit" class="password-center-save">确认进入</button><em aria-live="polite"></em></form>');
     const form = layer.querySelector('form');
+    const submitButton = form.querySelector('.password-center-save');
     const updateLock = () => {
       const attempts = readAttempts(); const remaining = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
-      form.querySelector('button[type="submit"]').disabled = remaining > 0;
+      submitButton.disabled = remaining > 0;
       if (remaining > 0) form.querySelector('em').textContent = `尝试次数过多，请 ${remaining} 秒后再试。`;
       else if (/尝试次数过多/.test(form.querySelector('em').textContent)) form.querySelector('em').textContent = '';
       if (remaining > 0) setTimeout(() => { if (layer.isConnected) updateLock(); }, 1000);
@@ -76,7 +77,7 @@
     };
     form.onsubmit = async event => {
       event.preventDefault(); if (updateLock() > 0) return;
-      const submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = '正在验证…';
+      const submit = submitButton; submit.disabled = true; submit.textContent = '正在验证…';
       await cloudReady;
       if (form.querySelector('input').value !== get('settings-admin')) {
         const attempts = readAttempts(); attempts.count = (attempts.count || 0) + 1;
