@@ -1,0 +1,14 @@
+.calendar-library{margin-top:28px;padding-top:24px;border-top:1px solid rgba(151,174,195,.18)}
+.calendar-library header{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.calendar-library header b,.calendar-library header small{display:block}
+.calendar-library header b{font-size:17px}
+.calendar-library header small{margin-top:5px;color:#72889c}
+.calendar-library-upload{flex:none;padding:10px 14px;border:1px solid rgba(214,180,103,.45);color:#ddc17d;cursor:pointer}
+.calendar-library-upload input{display:none}
+.calendar-library-status{min-height:20px;margin:12px 0;color:#91a7ba;font-size:12px}
+.calendar-library-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;min-height:72px}
+.calendar-library-grid figure{position:relative;aspect-ratio:1;margin:0;overflow:hidden;background:#050e15}
+.calendar-library-grid img{width:100%;height:100%;object-fit:cover}
+.calendar-library-grid figure button{position:absolute;right:4px;top:4px;width:24px;height:24px;padding:0;border:1px solid #ffffff55;border-radius:50%;background:#061019cc;color:#fff;cursor:pointer}
+.calendar-library-empty{grid-column:1/-1;display:grid;place-items:center;color:#72889c;border:1px dashed #ffffff1c}
+@media(max-width:600px){.calendar-library header{align-items:flex-start;flex-direction:column}.calendar-library-upload{width:100%;text-align:center}.calendar-library-grid{grid-template-columns:repeat(3,1fr)}}

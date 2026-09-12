@@ -15,7 +15,7 @@
   border-radius: 1px;
   background: #f7f5ee;
   box-shadow: 0 24px 60px rgba(0, 0, 0, .25);
-  cursor: pointer;
+  cursor: default;
 }
 
 .daily-poster::after {
@@ -76,8 +76,7 @@
   height: 100%;
   min-height: 160px;
   object-fit: cover;
-  filter: saturate(.72) contrast(.9) brightness(1.08);
-  mix-blend-mode: multiply;
+  filter: saturate(1.08) contrast(1.04) brightness(1.02);
 }
 
 .daily-poster__vertical {
@@ -104,9 +103,12 @@
   font-size: 8px;
   letter-spacing: .12em;
 }
+.daily-poster__source{grid-column:1;display:block;color:#3f4541;font:9px/1.45 'Songti SC','Noto Serif SC',serif;letter-spacing:.03em}
+.daily-poster--layout-1{grid-template-columns:74px minmax(0,1fr);grid-template-rows:auto auto 1fr auto}.daily-poster--layout-1 .daily-poster__edition{grid-column:1/-1}.daily-poster--layout-1 .daily-poster__date{grid-column:1;grid-row:2}.daily-poster--layout-1 .daily-poster__message{grid-column:2;grid-row:2;align-self:center;font-size:22px}.daily-poster--layout-1 .daily-poster__art{grid-column:1/-1;grid-row:3}.daily-poster--layout-1 .daily-poster__vertical{display:none}.daily-poster--layout-1 .daily-poster__source{grid-column:1/-1}
+.daily-poster--layout-2{grid-template-columns:90px minmax(0,1fr);grid-template-rows:auto 1fr auto auto}.daily-poster--layout-2 .daily-poster__edition{grid-column:1}.daily-poster--layout-2 .daily-poster__date{grid-column:1;grid-row:2}.daily-poster--layout-2 .daily-poster__art{grid-column:2;grid-row:1/4}.daily-poster--layout-2 .daily-poster__message{grid-column:1;grid-row:3;padding:0;font-size:15px}.daily-poster--layout-2 .daily-poster__vertical{display:none}.daily-poster--layout-2 .daily-poster__source{grid-column:1;grid-row:4}.daily-poster--layout-2 .daily-poster__foot{grid-column:2;grid-row:4}
+.daily-poster--layout-3{grid-template-columns:minmax(0,1fr) 72px;grid-template-rows:auto auto 1fr auto}.daily-poster--layout-3 .daily-poster__edition{grid-column:1/-1}.daily-poster--layout-3 .daily-poster__date{grid-column:2;grid-row:2}.daily-poster--layout-3 .daily-poster__message{grid-column:1;grid-row:2;align-self:center;font-size:18px}.daily-poster--layout-3 .daily-poster__art{grid-column:1/-1;grid-row:3}.daily-poster--layout-3 .daily-poster__vertical{display:none}.daily-poster--layout-3 .daily-poster__source{grid-column:1/-1}
 
-.daily-poster:hover { transform: translateY(-3px); box-shadow: 0 28px 70px rgba(0, 0, 0, .32); }
-.daily-poster:focus-visible { outline: 2px solid #d7b66f; outline-offset: 3px; }
+.daily-poster:hover { box-shadow: 0 28px 70px rgba(0, 0, 0, .32); }
 
 @media (max-width: 720px) {
   .daily-poster { width: min(310px, 92vw); margin: 26px auto 0; padding: 16px; gap: 10px 14px; }

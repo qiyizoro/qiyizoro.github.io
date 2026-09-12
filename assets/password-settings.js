@@ -1,6 +1,7 @@
 (() => {
   const SUPABASE_URL = 'https://bwspbjatblwcfjgkuqbm.supabase.co';
   const API_KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
+  const BUCKET = 'memory-photos';
   const AUTH_KEY = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
   const LOCAL_KEY = 'unknown-world-passwords-v1';
   const PENDING_KEY = 'unknown-world-passwords-pending-v1';
@@ -18,6 +19,7 @@
   const session = () => { try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch { return null; } };
   const headers = extra => ({ apikey: API_KEY, Authorization: `Bearer ${session()?.access_token || API_KEY}`, ...(extra || {}) });
   const get = key => read()[key] || DEFAULTS[key] || '';
+  const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
   async function loadCloud() {
     if (!session()?.access_token) return read();
     if (localStorage.getItem(PENDING_KEY) === '1') {
@@ -46,10 +48,57 @@
     layer.querySelector('.password-center-close')?.addEventListener('click', () => layer.remove());
     document.body.append(layer); return layer;
   };
+  async function calendarImageUrl(path) {
+    try { const response = await fetch(`${SUPABASE_URL}/storage/v1/object/sign/${BUCKET}/${encodeURI(path)}`, { method: 'POST', headers: headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ expiresIn: 3600 }) }); const data = response.ok ? await response.json() : {}; return data.signedURL ? `${SUPABASE_URL}/storage/v1${data.signedURL}` : ''; } catch { return ''; }
+  }
+  async function loadCalendarLibrary(layer) {
+    const grid = layer.querySelector('.calendar-library-grid'); if (!grid) return;
+    grid.innerHTML = '<span class="calendar-library-empty">正在读取照片库…</span>';
+    try {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path,description&location=eq.DAILY_CALENDAR_IMAGE&order=created_at.desc&limit=40`, { headers: headers() });
+      if (!response.ok) throw new Error();
+      const rows = await response.json();
+      if (!rows.length) { grid.innerHTML = '<span class="calendar-library-empty">还没有专用照片</span>'; return; }
+      const cards = await Promise.all(rows.map(async row => `<figure data-id="${escapeHtml(row.id)}" data-path="${escapeHtml(row.storage_path)}"><img src="${escapeHtml(await calendarImageUrl(row.storage_path))}" alt="${escapeHtml(row.description || '日历照片')}"><button type="button" aria-label="删除这张日历照片">×</button></figure>`));
+      grid.innerHTML = cards.join('');
+      grid.querySelectorAll('button').forEach(button => button.onclick = async () => {
+        if (!confirm('从日历照片库删除这张照片？已生成的今日日签不会改变。')) return;
+        const figure = button.closest('figure'); const auth = session(); if (!auth?.access_token) return;
+        button.disabled = true;
+        const removed = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(figure.dataset.id)}`, { method: 'DELETE', headers: headers() });
+        if (!removed.ok) { button.disabled = false; return; }
+        await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${encodeURI(figure.dataset.path)}`, { method: 'DELETE', headers: headers() }).catch(() => {});
+        figure.remove();
+      });
+    } catch { grid.innerHTML = '<span class="calendar-library-empty">照片库暂时无法读取</span>'; }
+  }
+  function mountCalendarLibrary(layer) {
+    const input = layer.querySelector('.calendar-library-upload input'); const status = layer.querySelector('.calendar-library-status');
+    input.onchange = async () => {
+      const auth = session(); const files = [...input.files]; if (!files.length) return;
+      if (!auth?.access_token || !auth?.user?.id) { status.textContent = '请先登录云端账号。'; input.value = ''; return; }
+      const valid = files.filter(file => file.type.startsWith('image/') && file.size <= 15 * 1024 * 1024);
+      if (!valid.length) { status.textContent = '请选择不超过 15MB 的图片。'; input.value = ''; return; }
+      input.disabled = true; status.textContent = `正在上传 0 / ${valid.length}`; let complete = 0;
+      for (const file of valid) {
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase(); const path = `${auth.user.id}/daily-calendar/${crypto.randomUUID()}.${ext}`;
+        try {
+          const uploaded = await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, { method: 'POST', headers: headers({ 'Content-Type': file.type, 'x-upsert': 'false' }), body: file });
+          if (!uploaded.ok) continue;
+          const saved = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, { method: 'POST', headers: headers({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }), body: JSON.stringify({ storage_path: path, description: file.name, location: 'DAILY_CALENDAR_IMAGE', ratio: 1 }) });
+          if (!saved.ok) await fetch(`${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path}`, { method: 'DELETE', headers: headers() }).catch(() => {}); else complete += 1;
+        } catch {}
+        status.textContent = `正在上传 ${complete} / ${valid.length}`;
+      }
+      input.disabled = false; input.value = ''; status.textContent = complete ? `已上传 ${complete} 张，明天开始参与日签。` : '上传失败，请检查网络后重试。'; loadCalendarLibrary(layer);
+    };
+    loadCalendarLibrary(layer);
+  }
   function openCenter() {
     const values = read();
-    const layer = makeLayer(`<section class="password-center" role="dialog" aria-modal="true"><button class="password-center-close" aria-label="关闭">×</button><p class="password-center-kicker">ACCESS CONTROL</p><h2>密码设置</h2><p class="password-center-intro">统一管理需要密码的区域。修改会先保存在本机，并在已连接云端时同步。</p><div class="password-center-list">${AREAS.map(([key,name,hint]) => `<label><span><b>${name}</b><small>${hint}</small></span><span class="password-field"><input type="password" inputmode="numeric" maxlength="4" data-key="${key}" value="${values[key]}"><button type="button" class="password-reveal">显示</button></span></label>`).join('')}</div><p class="password-center-status" aria-live="polite"></p><button class="password-center-save">保存并同步</button></section>`);
+    const layer = makeLayer(`<section class="password-center" role="dialog" aria-modal="true"><button class="password-center-close" aria-label="关闭">×</button><p class="password-center-kicker">ACCESS CONTROL</p><h2>设置中心</h2><p class="password-center-intro">统一管理密码与日历照片库。</p><div class="password-center-list">${AREAS.map(([key,name,hint]) => `<label><span><b>${name}</b><small>${hint}</small></span><span class="password-field"><input type="password" inputmode="numeric" maxlength="4" data-key="${key}" value="${values[key]}"><button type="button" class="password-reveal">显示</button></span></label>`).join('')}</div><p class="password-center-status" aria-live="polite"></p><button class="password-center-save">保存并同步</button><section class="calendar-library"><header><span><b>日历照片库</b><small>照片从次日开始参与每日海报</small></span><label class="calendar-library-upload">上传照片<input type="file" multiple accept="image/jpeg,image/png,image/webp"></label></header><p class="calendar-library-status" aria-live="polite"></p><div class="calendar-library-grid"></div></section></section>`);
     layer.querySelectorAll('.password-reveal').forEach(button => button.onclick = () => { const input = button.previousElementSibling; input.type = input.type === 'password' ? 'text' : 'password'; button.textContent = input.type === 'password' ? '显示' : '隐藏'; });
+    mountCalendarLibrary(layer);
     layer.querySelector('.password-center-save').onclick = async event => {
       const status = layer.querySelector('.password-center-status'); const next = {};
       for (const input of layer.querySelectorAll('[data-key]')) { const value = input.value.trim(); if (!/^\d{4}$/.test(value)) { input.focus(); status.textContent = '密码需为四位数字。'; return; } next[input.dataset.key] = value; }
