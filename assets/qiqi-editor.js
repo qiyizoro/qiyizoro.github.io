@@ -10,7 +10,8 @@
   const headers = token => ({ apikey: KEY, Authorization: `Bearer ${token || KEY}` });
   const escape = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' })[char]);
   const uid = () => crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today = () => new Intl.DateTimeFormat('en-CA', { timeZone:'Asia/Shanghai', year:'numeric', month:'2-digit', day:'2-digit' }).format(new Date());
+  const pendingKey = key => `${STORE[key]}-pending`;
 
   function toast(text) {
     document.querySelector('.qiqi-toast')?.remove();
@@ -21,6 +22,7 @@
   async function load(key) {
     let value = []; try { value = JSON.parse(localStorage.getItem(STORE[key]) || '[]'); } catch {}
     const auth = session(); if (!auth?.access_token) return value;
+    if (localStorage.getItem(pendingKey(key)) === '1') { await save(key, value, true); return value; }
     try {
       const response = await fetch(`${API}/rest/v1/site_data?select=value&key=eq.${STORE[key]}`, { headers: headers(auth.access_token) });
       const rows = response.ok ? await response.json() : [];
@@ -29,13 +31,19 @@
     return value;
   }
 
-  async function save(key, value) {
+  async function save(key, value, quiet = false) {
     localStorage.setItem(STORE[key], JSON.stringify(value));
-    const auth = session(); if (!auth?.access_token) { toast('已保存在当前设备'); return; }
+    const auth = session(); if (!auth?.access_token) { localStorage.setItem(pendingKey(key), '1'); if (!quiet) toast('已保存在当前设备'); return false; }
     try {
-      const response = await fetch(`${API}/rest/v1/site_data`, { method:'POST', headers:{ ...headers(auth.access_token), 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates' }, body:JSON.stringify({ key:STORE[key], value, updated_at:new Date().toISOString() }) });
-      toast(response.ok ? '已同步到云端' : '已保存在当前设备，云端同步稍后重试');
-    } catch { toast('已保存在当前设备，网络恢复后可再次编辑同步'); }
+      const response = await fetch(`${API}/rest/v1/site_data?on_conflict=key`, { method:'POST', headers:{ ...headers(auth.access_token), 'Content-Type':'application/json', Prefer:'resolution=merge-duplicates' }, body:JSON.stringify({ key:STORE[key], value, updated_at:new Date().toISOString() }) });
+      if (response.ok) localStorage.removeItem(pendingKey(key)); else localStorage.setItem(pendingKey(key), '1');
+      if (!quiet) toast(response.ok ? '已同步到云端' : '已保存在当前设备，联网后自动重试'); return response.ok;
+    } catch { localStorage.setItem(pendingKey(key), '1'); if (!quiet) toast('已保存在当前设备，联网后自动重试'); return false; }
+  }
+
+  async function removeImage(path) {
+    const auth = session(); if (!path || !auth?.access_token) return;
+    await fetch(`${API}/storage/v1/object/${BUCKET}/${encodeURI(path)}`, { method:'DELETE', headers:headers(auth.access_token) }).catch(() => {});
   }
 
   async function upload(file) {
@@ -43,7 +51,7 @@
     if (!file.type?.startsWith('image/')) throw new Error('请选择图片文件');
     if (file.size > 15 * 1024 * 1024) throw new Error('图片不能超过 15MB');
     const auth = session();
-    if (!auth?.access_token || !auth?.user?.id) return await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve({ image:reader.result }); reader.onerror = reject; reader.readAsDataURL(file); });
+    if (!auth?.access_token || !auth?.user?.id) throw new Error('请先登录云端账号，再上传照片');
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase(); const path = `${auth.user.id}/qiqi-moments/${uid()}.${ext}`;
     const response = await fetch(`${API}/storage/v1/object/${BUCKET}/${path}`, { method:'POST', headers:{ ...headers(auth.access_token), 'Content-Type':file.type || 'application/octet-stream', 'x-upsert':'false' }, body:file });
     if (!response.ok) throw new Error('照片上传失败'); return { imagePath:path };
@@ -57,8 +65,9 @@
   function modal(title, fields, onSave) {
     const layer = document.createElement('div'); layer.className = 'qiqi-modal-layer';
     layer.innerHTML = `<section class="qiqi-modal" role="dialog" aria-modal="true"><button class="qiqi-close" type="button" aria-label="关闭">×</button><small>PERSONAL RECORD</small><h2>${escape(title)}</h2><form>${fields}<button class="qiqi-save" type="submit">保存</button></form></section>`;
-    const close = () => layer.remove(); layer.querySelector('.qiqi-close').onclick = close; layer.onclick = e => { if (e.target === layer) close(); };
-    layer.querySelector('form').onsubmit = async e => { e.preventDefault(); const button = e.currentTarget.querySelector('.qiqi-save'); button.disabled = true; button.textContent = '保存中…'; try { await onSave(new FormData(e.currentTarget)); close(); } catch (error) { toast(error.message || '保存失败'); button.disabled = false; button.textContent = '保存'; } };
+    let saving = false; const close = () => { if (!saving) layer.remove(); }; layer.querySelector('.qiqi-close').onclick = close; layer.onclick = e => { if (e.target === layer) close(); };
+    layer.querySelector('form').onsubmit = async e => { e.preventDefault(); if (saving) return; saving = true; const button = e.currentTarget.querySelector('.qiqi-save'); button.disabled = true; button.textContent = '保存中…'; try { await onSave(new FormData(e.currentTarget)); saving = false; close(); } catch (error) { saving = false; toast(error.message || '保存失败'); button.disabled = false; button.textContent = '保存'; } };
+    layer.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
     document.body.append(layer); return layer;
   }
 
@@ -76,18 +85,20 @@
   async function mount() {
     const title = [...document.querySelectorAll('.subhero h1')].find(item => item.textContent.includes('柒柒'));
     if (!title) { mounted = false; return; } if (mounted) return;
+    title.textContent = '柒柒的房间';
     const sections = document.querySelectorAll('.diary-section'); if (sections.length < 2) return; mounted = true;
     let moments = await load('moments'); let notes = await load('notes');
     sections[0].innerHTML = '<div class="qiqi-section-head"><div><small>PERSONAL MOMENTS</small><h2>记录瞬间</h2></div><button type="button" class="qiqi-add">＋ 添加瞬间</button></div><div class="qiqi-moment-grid"></div>';
     sections[1].innerHTML = '<div class="qiqi-section-head"><div><small>DAILY NOTES</small><h2>每日碎碎念</h2></div><button type="button" class="qiqi-add">＋ 添加一句</button></div><div class="qiqi-note-list"></div>';
     const renderMoments = async () => {
       const grid = sections[0].querySelector('.qiqi-moment-grid'); grid.innerHTML = moments.length ? '' : '<p class="qiqi-empty">还没有记录，留住第一个瞬间吧。</p>';
-      for (const item of moments) { const article = document.createElement('article'); const url = await imageUrl(item); article.innerHTML = `${url ? `<img src="${escape(url)}" alt="${escape(item.title)}">` : '<div class="qiqi-photo-empty">✦</div>'}<div><time>${escape(item.date)}</time><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p><nav><button data-action="edit">编辑</button><button data-action="delete">删除</button></nav></div>`; article.querySelector('[data-action=edit]').onclick = () => momentEditor(item, async updated => { moments = moments.map(x => x.id === item.id ? updated : x); await save('moments', moments); renderMoments(); }); article.querySelector('[data-action=delete]').onclick = async () => { if (!confirm('删除这一瞬间？')) return; moments = moments.filter(x => x.id !== item.id); await save('moments', moments); renderMoments(); }; grid.append(article); }
+      for (const item of moments) { const article = document.createElement('article'); const url = await imageUrl(item); article.innerHTML = `${url ? `<img src="${escape(url)}" alt="${escape(item.title)}">` : '<div class="qiqi-photo-empty">✦</div>'}<div><time>${escape(item.date)}</time><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p><nav><button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button></nav></div>`; article.onclick = event => event.stopPropagation(); article.oncontextmenu = event => event.preventDefault(); article.querySelector('[data-action=edit]').onclick = event => { event.stopPropagation(); momentEditor(item, async updated => { const oldPath = item.imagePath; moments = moments.map(x => x.id === item.id ? updated : x); const synced = await save('moments', moments); if (synced && updated.imagePath && oldPath && updated.imagePath !== oldPath) await removeImage(oldPath); renderMoments(); }); }; article.querySelector('[data-action=delete]').onclick = async event => { event.stopPropagation(); if (!confirm('删除这一瞬间？')) return; const next = moments.filter(x => x.id !== item.id); const synced = await save('moments', next); moments = next; if (synced) await removeImage(item.imagePath); renderMoments(); }; grid.append(article); }
     };
-    const renderNotes = () => { const list = sections[1].querySelector('.qiqi-note-list'); list.innerHTML = notes.length ? notes.map(item => `<article data-id="${escape(item.id)}"><time>${escape(item.date)}</time><p>${escape(item.text)}</p><nav><button data-action="edit">编辑</button><button data-action="delete">删除</button></nav></article>`).join('') : '<p class="qiqi-empty">今天还没有碎碎念。</p>'; list.querySelectorAll('article').forEach(article => { const item = notes.find(x => x.id === article.dataset.id); article.querySelector('[data-action=edit]').onclick = () => noteEditor(item, async updated => { notes = notes.map(x => x.id === item.id ? updated : x); await save('notes', notes); renderNotes(); }); article.querySelector('[data-action=delete]').onclick = async () => { if (!confirm('删除这句碎碎念？')) return; notes = notes.filter(x => x.id !== item.id); await save('notes', notes); renderNotes(); }; }); };
+    const renderNotes = () => { const list = sections[1].querySelector('.qiqi-note-list'); list.innerHTML = notes.length ? notes.map(item => `<article data-id="${escape(item.id)}"><time>${escape(item.date)}</time><p>${escape(item.text)}</p><nav><button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button></nav></article>`).join('') : '<p class="qiqi-empty">今天还没有碎碎念。</p>'; list.querySelectorAll('article').forEach(article => { const item = notes.find(x => x.id === article.dataset.id); article.onclick = event => event.stopPropagation(); article.oncontextmenu = event => event.preventDefault(); article.querySelector('[data-action=edit]').onclick = event => { event.stopPropagation(); noteEditor(item, async updated => { notes = notes.map(x => x.id === item.id ? updated : x); await save('notes', notes); renderNotes(); }); }; article.querySelector('[data-action=delete]').onclick = async event => { event.stopPropagation(); if (!confirm('删除这句碎碎念？')) return; notes = notes.filter(x => x.id !== item.id); await save('notes', notes); renderNotes(); }; }); };
     sections[0].querySelector('.qiqi-add').onclick = () => momentEditor(null, async item => { moments.unshift(item); await save('moments', moments); renderMoments(); });
     sections[1].querySelector('.qiqi-add').onclick = () => noteEditor(null, async item => { notes.unshift(item); await save('notes', notes); renderNotes(); });
     renderMoments(); renderNotes();
+    addEventListener('online', () => { save('moments', moments, true); save('notes', notes, true); });
   }
   new MutationObserver(mount).observe(document.documentElement, { childList:true, subtree:true }); mount();
 })();

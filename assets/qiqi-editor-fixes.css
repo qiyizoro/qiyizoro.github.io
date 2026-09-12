@@ -1,0 +1,5 @@
+.qiqi-moment-grid article,.qiqi-note-list article{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.qiqi-moment-grid nav,.qiqi-note-list nav{position:relative;z-index:2;display:flex;gap:10px}
+.qiqi-moment-grid nav button,.qiqi-note-list nav button{min-height:40px;padding:8px 14px!important;border:1px solid #ffffff1c!important;background:#07121a!important;color:#95a5af;cursor:pointer;touch-action:manipulation;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.qiqi-moment-grid nav button:last-child,.qiqi-note-list nav button:last-child{color:#d59494!important;border-color:#c687873d!important}
+@media(max-width:850px){.qiqi-moment-grid nav,.qiqi-note-list nav{display:grid;grid-template-columns:1fr 1fr}.qiqi-moment-grid nav button,.qiqi-note-list nav button{width:100%;font-size:14px}.qiqi-moment-grid article>div:last-child{padding:16px}.qiqi-note-list article{padding:18px 4px}}
