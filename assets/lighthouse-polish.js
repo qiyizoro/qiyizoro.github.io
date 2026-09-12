@@ -1,4 +1,38 @@
 (() => {
+  const foreignLocations = new Set([
+    'YEYE_PROFILE',
+    'QIQI_PROFILE',
+    'YEYE_MESSAGE_BOARD',
+    'WORLD_TREE_BUBBLE',
+    '人物档案'
+  ]);
+
+  function isolateLighthouseTile(tile) {
+    const copy = tile.querySelector('.memory-tile__copy');
+    const description = copy?.querySelector('p')?.textContent.trim() || '';
+    const locationNode = copy?.querySelector('span');
+    const location = locationNode?.textContent.trim() || '';
+    const isForeign = foreignLocations.has(location)
+      || /^(YEYE_|QIQI_|WORLD_TREE_)/.test(location)
+      || (/^[\[{]/.test(description) && /(?:avatarPath|cloudId|storage_path|traits)/.test(description));
+
+    tile.classList.toggle('lighthouse-hidden', isForeign);
+    if (isForeign) {
+      tile.removeAttribute('tabindex');
+      tile.removeAttribute('role');
+      tile.setAttribute('aria-hidden', 'true');
+      return false;
+    }
+
+    if (locationNode && location.startsWith('LIGHTHOUSE:')) {
+      const icon = locationNode.querySelector('svg')?.cloneNode(true);
+      locationNode.replaceChildren();
+      if (icon) locationNode.append(icon);
+      locationNode.append(location.slice('LIGHTHOUSE:'.length).trim() || '未记录地点');
+    }
+    return true;
+  }
+
   function polishCopy() {
     document.querySelectorAll('.subhero').forEach(hero => {
       const title = hero.querySelector('h1');
@@ -22,7 +56,7 @@
       requestAnimationFrame(() => masonry.classList.add('is-ready'));
     });
     document.querySelectorAll('.memory-tile').forEach(tile => {
-      if (tile.textContent.includes('WORLD_TREE_BUBBLE')) tile.classList.add('lighthouse-hidden');
+      if (!isolateLighthouseTile(tile)) return;
       if (!tile.hasAttribute('tabindex')) tile.tabIndex = 0;
       tile.setAttribute('role', 'button');
       tile.setAttribute('aria-label', tile.querySelector('img')?.alt || '查看回忆照片');

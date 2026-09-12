@@ -87,7 +87,7 @@
     const saved = await fetch(`${API}/rest/v1/memory_photos`, {
       method: 'POST',
       headers: { ...headers(auth.access_token), 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ storage_path: path, description, location: place, ratio })
+      body: JSON.stringify({ storage_path: path, description, location: `LIGHTHOUSE:${place}`, ratio })
     });
     if (!saved.ok) {
       await fetch(`${API}/storage/v1/object/${BUCKET}/${path}`, { method: 'DELETE', headers: headers(auth.access_token) }).catch(() => {});
