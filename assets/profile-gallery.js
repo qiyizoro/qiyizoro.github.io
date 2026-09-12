@@ -12,6 +12,13 @@
   };
   const token = () => session()?.access_token || '';
   const mountedStates = new Set();
+  function notify(message) {
+    document.querySelector('.profile-gallery-toast')?.remove();
+    const item = document.createElement('div');
+    item.className = 'profile-gallery-toast'; item.textContent = message; document.body.append(item);
+    requestAnimationFrame(() => item.classList.add('show'));
+    setTimeout(() => item.remove(), 2800);
+  }
   addEventListener('resize', () => {
     mountedStates.forEach(state => {
       if (!state.section.isConnected) mountedStates.delete(state);
@@ -42,18 +49,24 @@
 
   function positionItems(track, rotation = { x: -2, y: 0 }) {
     const cards = [...track.children];
-    const columns = Math.max(8, Math.ceil(cards.length / 3));
-    const rows = Math.ceil(cards.length / columns);
-    const radius = innerWidth < 700 ? 300 : Math.min(520, Math.max(390, innerWidth * .43));
+    const radius = innerWidth < 700 ? Math.min(330, Math.max(285, innerWidth * .78)) : Math.min(540, Math.max(410, innerWidth * .43));
     track.parentElement?.style.setProperty('--dome-radius', `${radius}px`);
-    cards.forEach((card, index) => {
-      const row = Math.floor(index / columns);
-      const column = index % columns;
-      const angleY = column / columns * 360 + (row % 2 ? 180 / columns : 0);
-      const angleX = (row - (rows - 1) / 2) * (innerWidth < 700 ? 19 : 17);
+    cards.forEach(card => {
+      const angleY = Number(card.dataset.longitude || 0);
+      const angleX = Number(card.dataset.latitude || 0);
       card.style.transform = `rotateY(${angleY}deg) rotateX(${-angleX}deg) translateZ(${radius}px)`;
     });
     track.style.transform = `translateZ(${-radius}px) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`;
+  }
+
+  function sphereSlots() {
+    const mobile = innerWidth < 700;
+    const counts = mobile ? [7, 9, 11, 9, 7] : [10, 13, 16, 13, 10];
+    const latitudes = mobile ? [-48, -24, 0, 24, 48] : [-44, -22, 0, 22, 44];
+    return counts.flatMap((count, row) => Array.from({ length: count }, (_, column) => ({
+      latitude: latitudes[row],
+      longitude: column / count * 360 + (row % 2 ? 180 / count : 0)
+    })));
   }
 
   function showPhoto(section, photo) {
@@ -67,20 +80,23 @@
   function render(track, photos, state) {
     track.replaceChildren();
     const pool = photos.length ? photos : [{ id: 'default', src: '/images/yeye-avatar.jpg', description: '椰椰' }];
-    const total = Math.min(innerWidth < 700 ? 24 : 36, Math.max(innerWidth < 700 ? 18 : 27, pool.length * 2));
-    for (let i = 0; i < total; i++) {
+    const slots = sphereSlots();
+    for (let i = 0; i < slots.length; i++) {
       const photo = pool[i % pool.length];
       const card = document.createElement('div');
       card.className = 'profile-dome-item'; card.tabIndex = 0; card.setAttribute('role', 'button'); card.setAttribute('aria-label', photo.description || '查看照片'); card.dataset.id = photo.id; card.dataset.path = photo.storage_path || '';
+      card.dataset.latitude = slots[i].latitude; card.dataset.longitude = slots[i].longitude;
       card.innerHTML = `<img src="${photo.src}" alt="${photo.description || '人物照片'}" draggable="false" loading="lazy" decoding="async">`;
       let timer;
       const stop = () => { clearTimeout(timer); timer = null; };
-      card.addEventListener('pointerdown', event => {
-        if (event.pointerType !== 'touch') return;
-        timer = setTimeout(() => removePhoto(photo, state), 700);
-      });
-      ['pointerup', 'pointercancel', 'pointermove'].forEach(name => card.addEventListener(name, stop));
-      card.addEventListener('contextmenu', event => { event.preventDefault(); removePhoto(photo, state); });
+      if (!photo.static && photo.id !== 'default') {
+        card.addEventListener('pointerdown', event => {
+          if (event.pointerType !== 'touch') return;
+          timer = setTimeout(() => { if (!state.moved) removePhoto(photo, state); }, 760);
+        });
+        ['pointerup', 'pointercancel', 'pointermove'].forEach(name => card.addEventListener(name, stop));
+        card.addEventListener('contextmenu', event => { event.preventDefault(); removePhoto(photo, state); });
+      }
       card.addEventListener('click', () => { if (!state.moved) showPhoto(state.section, photo); });
       card.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('.profile-photo-edit')) { event.preventDefault(); showPhoto(state.section, photo); } });
       track.append(card);
@@ -90,7 +106,7 @@
 
   async function removePhoto(photo, state) {
     if (photo.id === 'default') return;
-    if (photo.static) { alert('这张照片来自“宝宝”固定图库，如需移除请更新图库文件。'); return; }
+    if (photo.static) { notify('固定照片仅供展示'); return; }
     if (prompt('请输入删除密码') !== (globalThis.WorldPasswords?.get('photo-manager') || '5555')) { alert('密码不正确'); return; }
     if (!token()) { alert('请先在“回忆灯塔”登录云端账号后再删除。'); return; }
     const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?id=eq.${encodeURIComponent(photo.id)}`, { method: 'DELETE', headers: headers(token()) });
@@ -141,7 +157,7 @@
     if (profile.dataset.galleryMounted) return;
     profile.dataset.galleryMounted = 'true'; profile.classList.add('magazine-profile');
     const section = document.createElement('section'); section.className = 'profile-gallery-section';
-    section.innerHTML = `<div class="profile-gallery-head"><div><small>PERSONAL MOMENTS</small><h2>展示星环</h2></div><label class="profile-gallery-add"><span aria-hidden="true">＋</span><strong>上传照片</strong><small>支持多选</small><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><div class="profile-dome" aria-label="椰椰的照片展示墙"><div class="profile-dome-track"></div><div class="profile-dome-overlay"></div><div class="profile-dome-viewer" hidden><button type="button" aria-label="关闭照片">×</button><img alt=""></div></div><p class="profile-gallery-note">拖动探索照片 · 点击查看 · 手机长按或电脑右键删除</p>`;
+    section.innerHTML = `<div class="profile-gallery-head"><div><small>PERSONAL MOMENTS</small><h2>展示星环</h2></div><label class="profile-gallery-add"><span aria-hidden="true">＋</span><strong>上传照片</strong><small>支持多选</small><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/heic,image/heif"></label></div><div class="profile-dome" aria-label="椰椰的球体照片展示墙"><div class="profile-dome-grid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div><div class="profile-dome-track"></div><div class="profile-dome-overlay"></div><div class="profile-dome-viewer" hidden><button type="button" aria-label="关闭照片">×</button><img alt=""></div></div><p class="profile-gallery-note">上下左右拖动球体 · 点击查看照片</p>`;
     profile.after(section);
     const dome = section.querySelector('.profile-dome'), track = section.querySelector('.profile-dome-track');
     const state = { section, track, photos: [], rotation: { x: -2, y: 0 }, moved: false, addLabel: section.querySelector('.profile-gallery-add strong') };
@@ -150,7 +166,7 @@
     let down = false, startX = 0, startY = 0, startRotation, frame = 0, nextRotation, lastX = 0, lastY = 0, lastTime = 0, velocityX = 0, velocityY = 0, inertia = 0;
     const spin = () => {
       velocityX *= .94; velocityY *= .94;
-      state.rotation.y += velocityX; state.rotation.x = Math.max(-16, Math.min(16, state.rotation.x - velocityY));
+      state.rotation.y += velocityX; state.rotation.x = Math.max(-38, Math.min(38, state.rotation.x - velocityY));
       positionItems(track, state.rotation);
       if (Math.abs(velocityX) + Math.abs(velocityY) > .025) inertia = requestAnimationFrame(spin); else inertia = 0;
     };
@@ -159,7 +175,7 @@
       if (!down) return;
       const dx = event.clientX - startX, dy = event.clientY - startY;
       if (Math.abs(dx) + Math.abs(dy) > 5) state.moved = true;
-      nextRotation = { x: Math.max(-16, Math.min(16, startRotation.x - dy * .055)), y: startRotation.y + dx * .12 };
+      nextRotation = { x: Math.max(-38, Math.min(38, startRotation.x - dy * .105)), y: startRotation.y + dx * .12 };
       const now = performance.now(), elapsed = Math.max(8, now - lastTime);
       velocityX = (event.clientX - lastX) / elapsed * 7; velocityY = (event.clientY - lastY) / elapsed * 2.7;
       lastX = event.clientX; lastY = event.clientY; lastTime = now;
