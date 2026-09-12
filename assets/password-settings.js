@@ -3,8 +3,12 @@
   const API_KEY = 'sb_publishable_r6wyD1OF7KQwRiJdgUwyOw_Rey-pbxM';
   const AUTH_KEY = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
   const LOCAL_KEY = 'unknown-world-passwords-v1';
-  const DEFAULTS = { 'world-tree': '0520', 'secret-room': '0520', 'photo-manager': '5555' };
+  const PENDING_KEY = 'unknown-world-passwords-pending-v1';
+  const UNLOCK_KEY = 'password-settings-unlocked-until';
+  const ATTEMPTS_KEY = 'password-settings-attempts-v1';
+  const DEFAULTS = { 'settings-admin': '7171', 'world-tree': '0520', 'secret-room': '0520', 'photo-manager': '5555' };
   const AREAS = [
+    ['settings-admin', '设置管理', '进入本密码设置时使用'],
     ['world-tree', '世界树', '进入世界树时使用'],
     ['secret-room', '秘密房间', '进入私密空间时使用'],
     ['photo-manager', '照片管理', '长按删除星环照片时使用']
@@ -16,6 +20,9 @@
   const get = key => read()[key] || DEFAULTS[key] || '';
   async function loadCloud() {
     if (!session()?.access_token) return read();
+    if (localStorage.getItem(PENDING_KEY) === '1') {
+      const local = read(); await saveCloud(local); return local;
+    }
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/site_data?select=value&key=eq.password-settings&limit=1`, { headers: headers() });
       const rows = response.ok ? await response.json() : [];
@@ -25,11 +32,12 @@
   }
   async function saveCloud(value) {
     write(value);
-    if (!session()?.access_token) return false;
+    if (!session()?.access_token) { localStorage.setItem(PENDING_KEY, '1'); return false; }
     try {
       const response = await fetch(`${SUPABASE_URL}/rest/v1/site_data?on_conflict=key`, { method: 'POST', headers: headers({ 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' }), body: JSON.stringify({ key: 'password-settings', value: { ...DEFAULTS, ...value }, updated_at: new Date().toISOString() }) });
+      if (response.ok) localStorage.removeItem(PENDING_KEY); else localStorage.setItem(PENDING_KEY, '1');
       return response.ok;
-    } catch { return false; }
+    } catch { localStorage.setItem(PENDING_KEY, '1'); return false; }
   }
   globalThis.WorldPasswords = { get, loadCloud, saveCloud };
   const makeLayer = html => {
@@ -47,12 +55,40 @@
       for (const input of layer.querySelectorAll('[data-key]')) { const value = input.value.trim(); if (!/^\d{4}$/.test(value)) { input.focus(); status.textContent = '密码需为四位数字。'; return; } next[input.dataset.key] = value; }
       event.currentTarget.disabled = true; status.textContent = '正在保存…'; const synced = await saveCloud(next);
       status.textContent = synced ? '已保存，并同步到云端。' : '已保存到本机；登录云端后再次保存即可同步。'; event.currentTarget.disabled = false;
+      if (next['settings-admin'] !== values['settings-admin']) sessionStorage.removeItem(UNLOCK_KEY);
     };
   }
-  function openGate() {
+  const cloudReady = loadCloud();
+  const readAttempts = () => { try { return JSON.parse(sessionStorage.getItem(ATTEMPTS_KEY) || '{"count":0,"lockedUntil":0}'); } catch { return { count: 0, lockedUntil: 0 }; } };
+  const writeAttempts = value => sessionStorage.setItem(ATTEMPTS_KEY, JSON.stringify(value));
+  async function openGate() {
     if (document.querySelector('.password-center-layer')) return;
-    const layer = makeLayer('<form class="password-gate" role="dialog" aria-modal="true"><button type="button" class="password-center-close" aria-label="关闭">×</button><p class="password-center-kicker">SETTINGS</p><h2>进入设置</h2><p>请输入管理密码</p><input type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="四位密码"><button class="password-center-save">确认进入</button><em aria-live="polite"></em></form>');
-    const form = layer.querySelector('form'); form.onsubmit = event => { event.preventDefault(); if (form.querySelector('input').value !== '7171') { form.querySelector('em').textContent = '密码不正确，请再试一次。'; return; } layer.remove(); openCenter(); }; setTimeout(() => form.querySelector('input').focus());
+    if (Number(sessionStorage.getItem(UNLOCK_KEY) || 0) > Date.now()) { await cloudReady; openCenter(); return; }
+    const layer = makeLayer('<form class="password-gate" role="dialog" aria-modal="true"><button type="button" class="password-center-close" aria-label="关闭">×</button><p class="password-center-kicker">SETTINGS</p><h2>进入设置</h2><p>请输入管理密码</p><input type="password" inputmode="numeric" maxlength="4" autocomplete="current-password" placeholder="四位密码"><button class="password-center-save">确认进入</button><em aria-live="polite"></em></form>');
+    const form = layer.querySelector('form');
+    const updateLock = () => {
+      const attempts = readAttempts(); const remaining = Math.ceil((attempts.lockedUntil - Date.now()) / 1000);
+      form.querySelector('button[type="submit"]').disabled = remaining > 0;
+      if (remaining > 0) form.querySelector('em').textContent = `尝试次数过多，请 ${remaining} 秒后再试。`;
+      else if (/尝试次数过多/.test(form.querySelector('em').textContent)) form.querySelector('em').textContent = '';
+      if (remaining > 0) setTimeout(() => { if (layer.isConnected) updateLock(); }, 1000);
+      return remaining;
+    };
+    form.onsubmit = async event => {
+      event.preventDefault(); if (updateLock() > 0) return;
+      const submit = form.querySelector('button[type="submit"]'); submit.disabled = true; submit.textContent = '正在验证…';
+      await cloudReady;
+      if (form.querySelector('input').value !== get('settings-admin')) {
+        const attempts = readAttempts(); attempts.count = (attempts.count || 0) + 1;
+        if (attempts.count >= 5) { attempts.count = 0; attempts.lockedUntil = Date.now() + 30000; }
+        writeAttempts(attempts); submit.textContent = '确认进入'; submit.disabled = false;
+        form.querySelector('em').textContent = attempts.lockedUntil > Date.now() ? '尝试次数过多，请 30 秒后再试。' : `密码不正确，还可尝试 ${5 - attempts.count} 次。`;
+        form.querySelector('input').select(); return;
+      }
+      writeAttempts({ count: 0, lockedUntil: 0 }); sessionStorage.setItem(UNLOCK_KEY, String(Date.now() + 10 * 60 * 1000));
+      layer.remove(); openCenter();
+    };
+    updateLock(); setTimeout(() => form.querySelector('input').focus());
   }
   function enhanceHeader() {
     const header = document.querySelector('header'); if (!header || header.querySelector('.password-settings-button')) return;
@@ -65,5 +101,7 @@
       form.addEventListener('submit', event => { const input = form.querySelector('input'); if (!input || input.value === '0520' || input.value !== get('secret-room')) return; event.preventDefault(); event.stopImmediatePropagation(); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set; setter?.call(input, '0520'); input.dispatchEvent(new Event('input', { bubbles: true })); requestAnimationFrame(() => form.requestSubmit()); }, true);
     });
   }
-  const scan = () => { enhanceHeader(); enhanceSecretGate(); }; loadCloud(); new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true }); scan();
+  const scan = () => { enhanceHeader(); enhanceSecretGate(); };
+  addEventListener('online', async () => { if (localStorage.getItem(PENDING_KEY) === '1' && session()?.access_token) await saveCloud(read()); });
+  new MutationObserver(scan).observe(document.documentElement, { childList: true, subtree: true }); scan();
 })();
