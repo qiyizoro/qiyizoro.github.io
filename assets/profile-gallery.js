@@ -95,10 +95,16 @@
       if (!photo.static && photo.id !== 'default') {
         card.addEventListener('pointerdown', event => {
           if (event.pointerType !== 'touch') return;
-          timer = setTimeout(() => { if (!state.moved) removePhoto(photo, state); }, 760);
+          timer = setTimeout(() => { if (!state.moved) removePhoto(photo, state); }, 3200);
         });
         ['pointerup', 'pointercancel', 'pointermove'].forEach(name => card.addEventListener(name, stop));
-        card.addEventListener('contextmenu', event => { event.preventDefault(); removePhoto(photo, state); });
+        card.addEventListener('contextmenu', event => {
+          event.preventDefault();
+          // Touch deletion is governed exclusively by the 3.2s timer above;
+          // ignore the earlier native long-press context-menu event on mobile.
+          if (event.pointerType === 'touch' || timer) return;
+          removePhoto(photo, state);
+        });
       }
       card.addEventListener('click', () => { if (!state.moved) showPhoto(state.section, photo); });
       card.addEventListener('keydown', event => { if ((event.key === 'Enter' || event.key === ' ') && !event.target.closest('.profile-photo-edit')) { event.preventDefault(); showPhoto(state.section, photo); } });
