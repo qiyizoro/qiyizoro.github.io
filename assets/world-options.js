@@ -39,6 +39,11 @@
     if (!auth?.access_token || !auth?.user?.id) return null;
     const path = `tree-bubbles/${auth.user.id}/${item.id}.json`;
     try {
+      const existing = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos?select=id,storage_path&location=eq.WORLD_TREE_BUBBLE&storage_path=eq.${encodeURIComponent(path)}&limit=1`, { headers: cloudHeaders(auth.access_token) });
+      if (existing.ok) {
+        const rows = await existing.json();
+        if (rows[0]) return { ...item, cloudId: rows[0].id, cloudPath: path };
+      }
       const response = await fetch(`${SUPABASE_URL}/rest/v1/memory_photos`, {
         method: 'POST',
         headers: cloudHeaders(auth.access_token, { 'Content-Type': 'application/json', Prefer: 'return=representation' }),
@@ -71,20 +76,29 @@
     orbit.style.setProperty('--orbit-duration', `${item.duration}s`);
     orbit.style.setProperty('--orbit-delay', `${item.delay}s`);
     orbit.style.setProperty('--orbit-depth', item.depth);
-    let timer;
-    let longPressed = false;
-    const cancel = () => clearTimeout(timer);
-    bubble.addEventListener('pointerdown', () => {
-      longPressed = false;
+    let timer, startX = 0, startY = 0, moved = false, longPressed = false;
+    const cancel = () => { clearTimeout(timer); timer = null; orbit.classList.remove('is-interacting'); };
+    bubble.addEventListener('pointerdown', event => {
+      event.stopPropagation();
+      longPressed = false; moved = false; startX = event.clientX; startY = event.clientY;
+      orbit.classList.add('is-interacting');
+      bubble.setPointerCapture?.(event.pointerId);
       timer = setTimeout(() => {
         longPressed = true;
         bubble.classList.add('is-removing');
         setTimeout(() => onDelete(item, orbit), 220);
-      }, 720);
+      }, 2200);
     });
-    ['pointerup', 'pointercancel', 'pointerleave'].forEach(type => bubble.addEventListener(type, cancel));
+    bubble.addEventListener('pointermove', event => {
+      if (!timer) return;
+      if (Math.hypot(event.clientX - startX, event.clientY - startY) > 9) { moved = true; cancel(); }
+    });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => bubble.addEventListener(type, cancel));
+    bubble.addEventListener('contextmenu', event => event.preventDefault());
     bubble.addEventListener('click', event => {
-      if (longPressed) { event.preventDefault(); return; }
+      event.stopPropagation();
+      if (longPressed || moved) { event.preventDefault(); return; }
+      bubble.closest('.tree-bubble-scene')?.querySelectorAll('.tree-bubble.is-open').forEach(open => { if (open !== bubble) { open.classList.remove('is-open'); open.setAttribute('aria-expanded', 'false'); } });
       bubble.classList.toggle('is-open');
       bubble.setAttribute('aria-expanded', String(bubble.classList.contains('is-open')));
     });
@@ -105,6 +119,8 @@
     input.setAttribute('aria-label', '输入气泡文字');
     add.type = 'submit';
     composer.append(input, add);
+    composer.addEventListener('pointerdown', event => event.stopPropagation());
+    scene.addEventListener('pointerdown', event => { if (event.target.closest('.tree-bubble')) input.blur(); }, true);
     back.onclick = () => close(view);
     view.append(back, scene, composer);
     document.body.append(view);
@@ -167,7 +183,7 @@
       bubbles.push(uploaded);
       renderAll();
       input.value = '';
-      input.focus();
+      if (matchMedia('(hover: hover) and (pointer: fine)').matches) input.focus(); else input.blur();
     };
     const refresh = async () => {
       if (!view.isConnected) return;

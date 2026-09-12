@@ -36,6 +36,9 @@
   contain: layout style;
 }
 
+.tree-bubble-orbit.is-interacting,
+.tree-bubble-orbit:has(.tree-bubble.is-open) { animation-play-state: paused; z-index: 8; }
+
 .tree-bubble {
   position: relative;
   width: 100%;
@@ -48,6 +51,8 @@
   background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.64), rgba(228,191,112,.16) 28%, rgba(8,18,25,.56) 72%);
   box-shadow: inset 0 0 18px rgba(255,255,255,.14), 0 0 24px rgba(221,181,92,.28);
   cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
   transition: width .35s, height .35s, margin .35s, border-radius .35s, opacity .22s, transform .22s;
 }
 
@@ -136,7 +141,7 @@
   .world-tree-back { font-size: 12px; padding: 9px 12px; }
   .tree-bubble-scene { inset: 8% 0 116px; }
   .tree-bubble-composer { bottom: max(12px, env(safe-area-inset-bottom)); grid-template-columns: 1fr auto; border-radius: 15px; backdrop-filter: blur(8px); }
-  .tree-bubble-composer input { padding: 11px; }
+  .tree-bubble-composer input { padding: 11px; font-size: 16px; }
   .tree-bubble-composer button { padding: 0 13px; }
 }
 
