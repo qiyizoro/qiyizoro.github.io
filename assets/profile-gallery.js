@@ -49,7 +49,7 @@
 
   function positionItems(track, rotation = { x: -2, y: 0 }) {
     const cards = [...track.children];
-    const radius = innerWidth < 700 ? Math.min(330, Math.max(285, innerWidth * .78)) : Math.min(540, Math.max(410, innerWidth * .43));
+    const radius = innerWidth < 700 ? Math.min(315, Math.max(275, innerWidth * .74)) : Math.min(520, Math.max(400, innerWidth * .42));
     track.parentElement?.style.setProperty('--dome-radius', `${radius}px`);
     cards.forEach(card => {
       const angleY = Number(card.dataset.longitude || 0);
@@ -61,8 +61,11 @@
 
   function sphereSlots() {
     const mobile = innerWidth < 700;
-    const counts = mobile ? [7, 9, 11, 9, 7] : [10, 13, 16, 13, 10];
-    const latitudes = mobile ? [-48, -24, 0, 24, 48] : [-44, -22, 0, 22, 44];
+    // Keep the equator fullest and taper towards the poles. The counts follow
+    // each latitude's shorter circumference, producing a continuous globe
+    // instead of five disconnected rings.
+    const counts = mobile ? [14, 18, 20, 18, 14] : [18, 23, 26, 23, 18];
+    const latitudes = mobile ? [-46, -23, 0, 23, 46] : [-44, -22, 0, 22, 44];
     return counts.flatMap((count, row) => Array.from({ length: count }, (_, column) => ({
       latitude: latitudes[row],
       longitude: column / count * 360 + (row % 2 ? 180 / count : 0)
