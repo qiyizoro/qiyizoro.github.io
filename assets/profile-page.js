@@ -8,12 +8,16 @@
     '柒柒': { location: 'QIQI_PROFILE', storage: 'qiqi-profile-v1', folder: 'qiqi-profile' }
   };
   const MESSAGE_LOCATION = 'YEYE_MESSAGE_BOARD';
+  const MESSAGE_STORE = 'yeye-messages-v3';
+  const MESSAGE_DELETES = 'yeye-message-deletes-v1';
 
   const auth = () => {
     try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch { return null; }
   };
   const headers = (token = auth()?.access_token || KEY) => ({ apikey: KEY, Authorization: `Bearer ${token}` });
   const escapeHtml = value => String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]);
+  const readStore = (key, fallback = []) => { try { const value = JSON.parse(localStorage.getItem(key) || 'null'); return Array.isArray(value) ? value : fallback; } catch { return fallback; } };
+  const writeStore = (key, value) => localStorage.setItem(key, JSON.stringify(value));
 
   function toast(message) {
     document.querySelector('.profile-toast')?.remove();
@@ -208,14 +212,22 @@
 
   async function loadMessages(board) {
     let cloud = [];
+    let cloudReady = false;
     try {
       const response = await fetch(`${API}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.${MESSAGE_LOCATION}&order=created_at.desc&limit=24`, { headers: headers(auth()?.access_token) });
-      if (response.ok) cloud = await response.json();
+      if (response.ok) { cloud = await response.json(); cloudReady = true; }
     } catch {}
-    let local = [];
-    try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
+    const local = readStore(MESSAGE_STORE, readStore('yeye-messages-v2', readStore('yeye-messages-v1')));
+    const deleted = readStore(MESSAGE_DELETES);
+    const deletedIds = new Set(deleted.map(item => String(item.cloud_id || '')));
+    const deletedPaths = new Set(deleted.map(item => item.storage_path).filter(Boolean));
+    cloud = cloud.filter(item => !deletedIds.has(String(item.id)) && !deletedPaths.has(item.storage_path));
     const cloudPaths = new Set(cloud.map(item => item.storage_path).filter(Boolean));
-    const messages = [...cloud, ...local.filter(item => !cloudPaths.has(item.storage_path))].slice(0, 32);
+    const pending = local.filter(item => item.pending && !cloudPaths.has(item.storage_path) && !deletedPaths.has(item.storage_path));
+    const messages = (cloudReady ? [...cloud, ...pending] : local.filter(item => !deletedPaths.has(item.storage_path))).slice(0, 32);
+    if (cloudReady) writeStore(MESSAGE_STORE, [...cloud.map(item => ({ ...item, cloud_id: item.id, pending: false })), ...pending].slice(0, 64));
+    const state = board.querySelector('.message-sync-state');
+    if (state) state.textContent = !auth()?.access_token ? '本机保存' : cloudReady ? (pending.length ? `${pending.length} 条待同步` : '已同步') : '离线模式';
     const list = board.querySelector('.message-list');
     list.innerHTML = messages.map((item, index) => {
       const seed = [...String(item.id || index)].reduce((total, char) => total + char.charCodeAt(0), 0);
@@ -231,39 +243,65 @@
         if (!confirm('删除这条便签？')) return;
         const article = button.closest('article');
         const id = article.dataset.id; const cloudId = article.dataset.cloudId; const path = article.dataset.path; const user = auth();
-        if (cloudId && !user?.access_token) { toast('请先登录后删除云端便签'); return; }
-        if (cloudId && user?.access_token) {
-          const removed = await fetch(`${API}/rest/v1/memory_photos?id=eq.${encodeURIComponent(cloudId)}`, { method: 'DELETE', headers: headers(user.access_token) });
-          if (!removed.ok) { toast('删除失败，请稍后重试'); return; }
+        const saved = readStore(MESSAGE_STORE, readStore('yeye-messages-v2'));
+        writeStore(MESSAGE_STORE, saved.filter(item => String(item.id) !== String(id) && item.storage_path !== path));
+        if (cloudId) {
+          const queue = readStore(MESSAGE_DELETES);
+          if (!queue.some(item => String(item.cloud_id) === String(cloudId))) queue.push({ cloud_id: cloudId, storage_path: path });
+          writeStore(MESSAGE_DELETES, queue);
         }
-        let saved = []; try { saved = JSON.parse(localStorage.getItem('yeye-messages-v2') || '[]'); } catch {}
-        localStorage.setItem('yeye-messages-v2', JSON.stringify(saved.filter(item => String(item.id) !== String(id) && item.storage_path !== path)));
-        article.remove(); toast('便签已删除');
+        article.remove();
+        if (cloudId && user?.access_token) {
+          const complete = await flushMessageDeletes();
+          toast(complete ? '便签已从云端删除' : '已排队，联网后自动删除');
+        } else toast(cloudId ? '已排队，登录后自动删除' : '便签已删除');
       };
     });
+  }
+
+  async function flushMessageDeletes() {
+    const session = auth();
+    if (!session?.access_token || !navigator.onLine) return false;
+    const queue = readStore(MESSAGE_DELETES); const remaining = [];
+    for (const item of queue) {
+      try {
+        const response = await fetch(`${API}/rest/v1/memory_photos?id=eq.${encodeURIComponent(item.cloud_id)}`, { method: 'DELETE', headers: headers(session.access_token) });
+        if (!response.ok) remaining.push(item);
+      } catch { remaining.push(item); }
+    }
+    writeStore(MESSAGE_DELETES, remaining);
+    return remaining.length === 0;
   }
 
   async function syncMessage(item) {
     const session = auth();
     if (!session?.access_token || !session?.user?.id) return null;
-    const response = await fetch(`${API}/rest/v1/memory_photos`, {
-      method: 'POST', headers: { ...headers(session.access_token), 'Content-Type': 'application/json', Prefer: 'return=representation' },
-      body: JSON.stringify({ storage_path: item.storage_path, description: item.description, location: MESSAGE_LOCATION, ratio: 1 })
-    });
-    if (!response.ok) return null;
-    const rows = await response.json();
-    return rows[0] || null;
+    try {
+      const existing = await fetch(`${API}/rest/v1/memory_photos?select=id,storage_path,description,created_at&location=eq.${MESSAGE_LOCATION}&storage_path=eq.${encodeURIComponent(item.storage_path)}&limit=1`, { headers: headers(session.access_token) });
+      if (existing.ok) { const rows = await existing.json(); if (rows[0]) return rows[0]; }
+    } catch {}
+    try {
+      const response = await fetch(`${API}/rest/v1/memory_photos`, {
+        method: 'POST', headers: { ...headers(session.access_token), 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify({ storage_path: item.storage_path, description: item.description, location: MESSAGE_LOCATION, ratio: 1 })
+      });
+      if (!response.ok) return null;
+      const rows = await response.json();
+      return rows[0] || null;
+    } catch { return null; }
   }
 
   async function retryPendingMessages(board) {
     const session = auth(); if (!session?.access_token) return;
-    let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || '[]'); } catch {}
+    const local = readStore(MESSAGE_STORE, readStore('yeye-messages-v2'));
     let changed = false;
     for (const item of local.filter(message => message.pending)) {
       const saved = await syncMessage(item);
       if (saved) { item.pending = false; item.cloud_id = saved.id; changed = true; }
     }
-    if (changed) { localStorage.setItem('yeye-messages-v2', JSON.stringify(local)); loadMessages(board); }
+    if (changed) writeStore(MESSAGE_STORE, local);
+    await flushMessageDeletes();
+    await loadMessages(board);
   }
 
   function addMessageBoard(main) {
@@ -278,21 +316,31 @@
     textarea.addEventListener('input', () => { board.querySelector('.message-counter').textContent = `${textarea.value.length} / 180`; });
     textarea.addEventListener('keydown', event => { if (event.ctrlKey && event.key === 'Enter') board.querySelector('form').requestSubmit(); });
     board.querySelector('form').onsubmit = async event => {
-      event.preventDefault(); const field = event.currentTarget.querySelector('textarea'); const value = field.value.trim(); if (!value) return;
+      event.preventDefault();
+      const form = event.currentTarget; if (form.dataset.saving === 'true') return;
+      const field = form.querySelector('textarea'); const value = field.value.trim(); if (!value) return;
+      const button = form.querySelector('button'); const finish = () => { form.dataset.saving = 'false'; button.disabled = false; button.textContent = '添加便签'; };
+      form.dataset.saving = 'true'; button.disabled = true; button.textContent = '正在保存…';
       const session = auth();
       const id = crypto.randomUUID();
       const item = { id, storage_path: `message-notes/${session?.user?.id || 'local'}/${id}.json`, description: value, created_at: new Date().toISOString(), pending: true };
-      let local = []; try { local = JSON.parse(localStorage.getItem('yeye-messages-v2') || localStorage.getItem('yeye-messages-v1') || '[]'); } catch {}
-      local.unshift(item); localStorage.setItem('yeye-messages-v2', JSON.stringify(local.slice(0, 32)));
+      const local = readStore(MESSAGE_STORE, readStore('yeye-messages-v2', readStore('yeye-messages-v1')));
+      local.unshift(item); writeStore(MESSAGE_STORE, local.slice(0, 64));
       field.value = ''; board.querySelector('.message-counter').textContent = '0 / 180'; await loadMessages(board);
-      if (!session?.access_token) { toast('便签已保存在本机'); return; }
+      if (!session?.access_token) { toast('便签已保存在本机'); finish(); return; }
       const saved = await syncMessage(item);
-      if (!saved) { toast('便签已保留，将在网络恢复后重试'); return; }
+      if (!saved) { toast('便签已保留，将在网络恢复后重试'); finish(); return; }
       item.pending = false; item.cloud_id = saved.id;
-      localStorage.setItem('yeye-messages-v2', JSON.stringify(local));
-      toast('便签已同步'); loadMessages(board);
+      writeStore(MESSAGE_STORE, local);
+      toast('便签已同步'); await loadMessages(board); finish();
     };
-    loadMessages(board).then(() => retryPendingMessages(board));
+    let refreshing = false;
+    const refresh = async () => { if (refreshing || !board.isConnected) return; refreshing = true; try { await retryPendingMessages(board); } finally { refreshing = false; } };
+    loadMessages(board).then(refresh);
+    addEventListener('online', refresh);
+    addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+    setInterval(() => { if (!document.hidden && navigator.onLine) refresh(); }, 45000);
   }
 
   function addLetter(main) {
