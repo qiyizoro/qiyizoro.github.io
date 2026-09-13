@@ -348,10 +348,53 @@
     const letter = document.createElement('button');
     letter.type = 'button'; letter.className = 'letter-easter-egg'; letter.setAttribute('aria-label', '一封隐藏的信');
     letter.innerHTML = '<img src="/images/letter-envelope-v2.png" alt="" draggable="false">';
+    const letterPages = [
+      `<p>老婆：</p><p>你看到这封信的时候，我应该已经回上海啦。</p><p>还是有一些话，想用写信的方式跟老婆说。</p><p>本来这次过来最大的目的，是把网站交到老婆手上。虽然感觉这件事好像一直都存在在我的想象里，但老婆真的选择在这个时候回来，还是很出乎我的意料。</p><p>我表面上虽然淡淡的，感觉“老婆回来不是很正常嘛”，但其实心里真的真的超级开心。</p><p>而且我好像从没想过老婆不会回来这个场景。快夸我——骄傲 eomji。</p>`,
+      `<p>我想跟老婆说，这段分开的经历，让我更看清了自己到底有多喜欢你、多爱你。</p><p>虽然这段时间我们都有伤心、难受也说了很多 diss 老婆的话，没觉得这是一段不好的经历。diss 都是气话啦，宝宝要原谅我。</p><p>宝宝超级靠谱的，我超级爱宝宝。</p><p>这段经历也让我觉得，我们的感情好像进入了一个新的阶段。它能让我们更有能量去做好当下和后面的生活。</p><p>也希望老婆和我一样，心里多了一点能量。</p>`,
+      `<p>最后想跟老婆说说未来这一段时间。</p><p>你不在的这些日子里，我会好好吃饭、好好睡觉、好好运动，也会去学习、看书，让自己变成一个更好、更靠谱的人。</p><p>同时也会给老婆留下很多很多我的生活碎片，让老婆知道我最近在干嘛。</p><p>哈哈哈哈哈，不知道到时候老婆会不会嫌弃我太啰嗦、要看的东西太多了。</p><p>我不管，反正老婆都要看的。</p><p>最后想跟老婆说一句：</p><p>老婆一定要时时刻刻想着我。</p><p>不只是开心的时候，觉得很难的时候也要想着我。</p><p>你不是一个人在面对困难，我一直都在你身边。我会一直想着你、念着你。</p><p>你也要答应我，好好吃饭，好好睡觉。</p><p>睡觉的时候，我就在梦里等你。</p><p>如果老婆先睡着了，就先在梦里等我一会儿，我会去找你的。</p>`,
+      `<figure class="love-letter-photo"><img src="/images/letter-final-nine-of-pentacles.png" alt="信件最后一页的纪念画面"></figure><p class="love-letter-trip">度假旅行规划 ing 🏖️……</p><p class="love-letter-signature">超级爱你的柒柒</p>`
+    ];
+    const openLetter = () => {
+      document.querySelector('.love-letter-layer')?.remove();
+      const layer = document.createElement('div');
+      layer.className = 'love-letter-layer';
+      layer.innerHTML = `<section class="love-letter-dialog" role="dialog" aria-modal="true" aria-label="给老婆的一封信"><button type="button" class="love-letter-close" aria-label="关闭信件">×</button><div class="love-letter-orbit" aria-hidden="true">✦</div><header><span>PRIVATE LETTER</span><h2>给老婆的一封信</h2></header><div class="love-letter-pages">${letterPages.map((page, index) => `<article class="love-letter-page${index ? '' : ' is-active'}" data-page="${index}"><div class="love-letter-copy">${page}</div></article>`).join('')}</div><footer><button type="button" class="love-letter-prev" aria-label="上一页">‹</button><div class="love-letter-progress" aria-label="信件页数">${letterPages.map((_, index) => `<button type="button" data-page="${index}" aria-label="第 ${index + 1} 页"></button>`).join('')}<span>01 / ${String(letterPages.length).padStart(2, '0')}</span></div><button type="button" class="love-letter-next" aria-label="下一页">›</button></footer><button type="button" class="love-letter-music" aria-label="暂停背景音乐"><span>Ⅱ</span> memorable trip</button><audio class="love-letter-audio" loop preload="auto"><source src="/audio/memorable-trip.mp3" type="audio/mpeg"><source src="/audio/memorable-trip.m4a" type="audio/mp4"></audio></section>`;
+      document.body.append(layer);
+      const pages = [...layer.querySelectorAll('.love-letter-page')];
+      const dots = [...layer.querySelectorAll('.love-letter-progress button')];
+      const audio = layer.querySelector('audio');
+      const music = layer.querySelector('.love-letter-music');
+      let page = 0, touchX = 0, touchY = 0;
+      const show = next => {
+        page = Math.max(0, Math.min(pages.length - 1, next));
+        pages.forEach((item, index) => item.classList.toggle('is-active', index === page));
+        dots.forEach((dot, index) => dot.classList.toggle('is-active', index === page));
+        layer.querySelector('.love-letter-progress span').textContent = `${String(page + 1).padStart(2, '0')} / ${String(pages.length).padStart(2, '0')}`;
+        layer.querySelector('.love-letter-prev').disabled = page === 0;
+        layer.querySelector('.love-letter-next').disabled = page === pages.length - 1;
+        pages[page].scrollTop = 0;
+      };
+      const close = () => { audio.pause(); document.body.classList.remove('love-letter-open'); layer.remove(); };
+      document.body.classList.add('love-letter-open');
+      layer.querySelector('.love-letter-close').onclick = close;
+      layer.onclick = event => { if (event.target === layer) close(); };
+      layer.querySelector('.love-letter-prev').onclick = () => show(page - 1);
+      layer.querySelector('.love-letter-next').onclick = () => show(page + 1);
+      dots.forEach(dot => dot.onclick = () => show(Number(dot.dataset.page)));
+      layer.addEventListener('touchstart', event => { touchX = event.changedTouches[0].clientX; touchY = event.changedTouches[0].clientY; }, { passive: true });
+      layer.addEventListener('touchend', event => { const dx = event.changedTouches[0].clientX - touchX; const dy = event.changedTouches[0].clientY - touchY; if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.35) show(page + (dx < 0 ? 1 : -1)); }, { passive: true });
+      const syncMusic = () => { const playing = !audio.paused; music.classList.toggle('is-playing', playing); music.querySelector('span').textContent = playing ? 'Ⅱ' : '▶'; music.setAttribute('aria-label', playing ? '暂停背景音乐' : '播放背景音乐'); };
+      music.onclick = () => { if (audio.paused) audio.play().catch(() => {}); else audio.pause(); };
+      audio.addEventListener('play', syncMusic); audio.addEventListener('pause', syncMusic); audio.addEventListener('error', () => music.classList.add('is-unavailable'));
+      show(0);
+      audio.volume = 0.34;
+      audio.play().then(syncMusic).catch(syncMusic);
+      requestAnimationFrame(() => layer.classList.add('is-visible'));
+    };
     let count = 0, reset;
     letter.onclick = () => {
       count += 1; clearTimeout(reset); letter.classList.remove('tapped'); void letter.offsetWidth; letter.classList.add('tapped'); setTimeout(() => letter.classList.remove('tapped'), 620);
-      if (count >= 5) { count = 0; toast('向同行玩家拿取你的信件'); letter.classList.add('unlocked'); }
+      if (count >= 5) { count = 0; clearTimeout(reset); letter.classList.add('unlocked'); openLetter(); }
       else reset = setTimeout(() => { count = 0; }, 2600);
     };
     (main.querySelector('.person-profile') || main).append(letter);
