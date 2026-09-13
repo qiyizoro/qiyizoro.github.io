@@ -29,6 +29,12 @@
   };
   const stampOf = date => `${date.year}-${String(date.month).padStart(2, '0')}-${String(date.day).padStart(2, '0')}`;
   const hash = text => [...text].reduce((value, char) => ((value * 31 + char.charCodeAt(0)) >>> 0), 2166136261);
+  const dailyQuoteIndex = stamp => {
+    const [year, month, day] = stamp.split('-').map(Number);
+    const dayNumber = Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+    const order = [0, 1, 2, 3, 4, 6, 7, 5, 8, 9, 10, 11];
+    return order[((dayNumber % order.length) + order.length) % order.length];
+  };
   const signedUrl = async path => {
     if (!path) return '';
     try { const response = await fetch(`${API}/storage/v1/object/sign/${BUCKET}/${encodeURI(path)}`, { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json' }, body: JSON.stringify({ expiresIn: 86400 }) }); const data = response.ok ? await response.json() : {}; return data.signedURL ? `${API}/storage/v1${data.signedURL}` : ''; } catch { return ''; }
@@ -45,9 +51,9 @@
     try {
       const response = await fetch(`${API}/rest/v1/site_data?select=value&key=eq.${key}&limit=1`, { headers: headers() });
       const rows = response.ok ? await response.json() : [];
-      if (rows[0]?.value) return rows[0].value;
+      if (rows[0]?.value) return { ...rows[0].value, quote: dailyQuoteIndex(stamp) };
     } catch {}
-    const seed = hash(stamp); const choice = { quote: seed % quotes.length, layout: seed % 4, imagePath: paths.length ? paths[seed % paths.length] : '' };
+    const seed = hash(stamp); const choice = { quote: dailyQuoteIndex(stamp), layout: seed % 4, imagePath: paths.length ? paths[seed % paths.length] : '' };
     if (session()?.access_token) fetch(`${API}/rest/v1/site_data?on_conflict=key`, { method: 'POST', headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify({ key, value: choice, updated_at: new Date().toISOString() }) }).catch(() => {});
     return choice;
   }
