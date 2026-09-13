@@ -4,6 +4,7 @@
   const BUCKET = 'memory-photos';
   const AUTH_KEY = 'sb-bwspbjatblwcfjgkuqbm-auth-token';
   const STORE = { moments: 'qiqi-moments-v1', notes: 'qiqi-notes-v1' };
+  const IMAGE_DELETE_STORE = 'qiqi-image-deletes-v1';
   let mounted = false;
 
   const session = () => { try { return JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch { return null; } };
@@ -42,8 +43,16 @@
   }
 
   async function removeImage(path) {
-    const auth = session(); if (!path || !auth?.access_token) return;
-    await fetch(`${API}/storage/v1/object/${BUCKET}/${encodeURI(path)}`, { method:'DELETE', headers:headers(auth.access_token) }).catch(() => {});
+    const auth = session(); if (!path || !auth?.access_token) return false;
+    try { const response = await fetch(`${API}/storage/v1/object/${BUCKET}/${encodeURI(path)}`, { method:'DELETE', headers:headers(auth.access_token) }); return response.ok; } catch { return false; }
+  }
+
+  const readImageDeletes = () => { try { const value = JSON.parse(localStorage.getItem(IMAGE_DELETE_STORE) || '[]'); return Array.isArray(value) ? value : []; } catch { return []; } };
+  const queueImageDelete = path => { if (!path) return; const queue = readImageDeletes(); if (!queue.includes(path)) queue.push(path); localStorage.setItem(IMAGE_DELETE_STORE, JSON.stringify(queue)); };
+  async function flushImageDeletes() {
+    const remaining = [];
+    for (const path of readImageDeletes()) if (!(await removeImage(path))) remaining.push(path);
+    localStorage.setItem(IMAGE_DELETE_STORE, JSON.stringify(remaining));
   }
 
   async function upload(file) {
@@ -92,13 +101,22 @@
     sections[1].innerHTML = '<div class="qiqi-section-head"><div><small>DAILY NOTES</small><h2>每日碎碎念</h2></div><button type="button" class="qiqi-add">＋ 添加一句</button></div><div class="qiqi-note-list"></div>';
     const renderMoments = async () => {
       const grid = sections[0].querySelector('.qiqi-moment-grid'); grid.innerHTML = moments.length ? '' : '<p class="qiqi-empty">还没有记录，留住第一个瞬间吧。</p>';
-      for (const item of moments) { const article = document.createElement('article'); const url = await imageUrl(item); article.innerHTML = `${url ? `<img src="${escape(url)}" alt="${escape(item.title)}">` : '<div class="qiqi-photo-empty">✦</div>'}<div><time>${escape(item.date)}</time><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p><nav><button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button></nav></div>`; article.onclick = event => event.stopPropagation(); article.oncontextmenu = event => event.preventDefault(); article.querySelector('[data-action=edit]').onclick = event => { event.stopPropagation(); momentEditor(item, async updated => { const oldPath = item.imagePath; moments = moments.map(x => x.id === item.id ? updated : x); const synced = await save('moments', moments); if (synced && updated.imagePath && oldPath && updated.imagePath !== oldPath) await removeImage(oldPath); renderMoments(); }); }; article.querySelector('[data-action=delete]').onclick = async event => { event.stopPropagation(); if (!confirm('删除这一瞬间？')) return; const next = moments.filter(x => x.id !== item.id); const synced = await save('moments', next); moments = next; if (synced) await removeImage(item.imagePath); renderMoments(); }; grid.append(article); }
+      for (const item of moments) { const article = document.createElement('article'); const url = await imageUrl(item); article.innerHTML = `${url ? `<img src="${escape(url)}" alt="${escape(item.title)}">` : '<div class="qiqi-photo-empty">✦</div>'}<div><time>${escape(item.date)}</time><h3>${escape(item.title)}</h3><p>${escape(item.description)}</p><nav><button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button></nav></div>`; article.onclick = event => event.stopPropagation(); article.oncontextmenu = event => event.preventDefault(); article.querySelector('[data-action=edit]').onclick = event => { event.stopPropagation(); momentEditor(item, async updated => { const oldPath = item.imagePath; moments = moments.map(x => x.id === item.id ? updated : x); const synced = await save('moments', moments); if (updated.imagePath && oldPath && updated.imagePath !== oldPath) { if (synced) await removeImage(oldPath); else queueImageDelete(oldPath); } renderMoments(); }); }; article.querySelector('[data-action=delete]').onclick = async event => { event.stopPropagation(); if (!confirm('删除这一瞬间？')) return; const next = moments.filter(x => x.id !== item.id); const synced = await save('moments', next); moments = next; if (item.imagePath) { if (synced) await removeImage(item.imagePath); else queueImageDelete(item.imagePath); } renderMoments(); }; grid.append(article); }
     };
     const renderNotes = () => { const list = sections[1].querySelector('.qiqi-note-list'); list.innerHTML = notes.length ? notes.map(item => `<article data-id="${escape(item.id)}"><time>${escape(item.date)}</time><p>${escape(item.text)}</p><nav><button type="button" data-action="edit">编辑</button><button type="button" data-action="delete">删除</button></nav></article>`).join('') : '<p class="qiqi-empty">今天还没有碎碎念。</p>'; list.querySelectorAll('article').forEach(article => { const item = notes.find(x => x.id === article.dataset.id); article.onclick = event => event.stopPropagation(); article.oncontextmenu = event => event.preventDefault(); article.querySelector('[data-action=edit]').onclick = event => { event.stopPropagation(); noteEditor(item, async updated => { notes = notes.map(x => x.id === item.id ? updated : x); await save('notes', notes); renderNotes(); }); }; article.querySelector('[data-action=delete]').onclick = async event => { event.stopPropagation(); if (!confirm('删除这句碎碎念？')) return; notes = notes.filter(x => x.id !== item.id); await save('notes', notes); renderNotes(); }; }); };
     sections[0].querySelector('.qiqi-add').onclick = () => momentEditor(null, async item => { moments.unshift(item); await save('moments', moments); renderMoments(); });
     sections[1].querySelector('.qiqi-add').onclick = () => noteEditor(null, async item => { notes.unshift(item); await save('notes', notes); renderNotes(); });
     renderMoments(); renderNotes();
-    addEventListener('online', () => { save('moments', moments, true); save('notes', notes, true); });
+    let refreshing = false;
+    const refresh = async () => {
+      if (refreshing || !sections[0].isConnected || document.querySelector('.qiqi-modal-layer')) return;
+      refreshing = true;
+      try { moments = await load('moments'); notes = await load('notes'); await renderMoments(); renderNotes(); await flushImageDeletes(); } finally { refreshing = false; }
+    };
+    addEventListener('online', refresh);
+    addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+    setInterval(() => { if (!document.hidden && navigator.onLine) refresh(); }, 45000);
   }
   new MutationObserver(mount).observe(document.documentElement, { childList:true, subtree:true }); mount();
 })();
